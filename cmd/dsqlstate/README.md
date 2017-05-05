@@ -1,0 +1,1 @@
+Standalone server to update the state, run your bot in another process to restart it without rebuilting the state.

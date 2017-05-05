@@ -1,0 +1,6 @@
+[postgres]
+dbname="dstate"
+host="localhost"
+user="postgres"
+pass="123"
+sslmode="disable"
