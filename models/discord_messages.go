@@ -22,7 +22,6 @@ import (
 type DiscordMessage struct {
 	ID              int64            `boil:"id" json:"id" toml:"id" yaml:"id"`
 	ChannelID       int64            `boil:"channel_id" json:"channel_id" toml:"channel_id" yaml:"channel_id"`
-	GuildID         int64            `boil:"guild_id" json:"guild_id" toml:"guild_id" yaml:"guild_id"`
 	Timestamp       time.Time        `boil:"timestamp" json:"timestamp" toml:"timestamp" yaml:"timestamp"`
 	EditedTimestamp time.Time        `boil:"edited_timestamp" json:"edited_timestamp" toml:"edited_timestamp" yaml:"edited_timestamp"`
 	DeletedAt       null.Time        `boil:"deleted_at" json:"deleted_at,omitempty" toml:"deleted_at" yaml:"deleted_at,omitempty"`
@@ -35,7 +34,7 @@ type DiscordMessage struct {
 	AuthorAvatar    string           `boil:"author_avatar" json:"author_avatar" toml:"author_avatar" yaml:"author_avatar"`
 	AuthorBot       bool             `boil:"author_bot" json:"author_bot" toml:"author_bot" yaml:"author_bot"`
 	Content         string           `boil:"content" json:"content" toml:"content" yaml:"content"`
-	Embeds          types.Int64Array `boil:"embeds" json:"embeds,omitempty" toml:"embeds" yaml:"embeds,omitempty"`
+	Embeds          types.Int64Array `boil:"embeds" json:"embeds" toml:"embeds" yaml:"embeds"`
 
 	R *discordMessageR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L discordMessageL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -51,8 +50,8 @@ type discordMessageR struct {
 type discordMessageL struct{}
 
 var (
-	discordMessageColumns               = []string{"id", "channel_id", "guild_id", "timestamp", "edited_timestamp", "deleted_at", "mention_roles", "mentions", "mention_everyone", "author_id", "author_username", "author_discrim", "author_avatar", "author_bot", "content", "embeds"}
-	discordMessageColumnsWithoutDefault = []string{"id", "channel_id", "guild_id", "timestamp", "edited_timestamp", "deleted_at", "mention_roles", "mentions", "mention_everyone", "author_id", "author_username", "author_discrim", "author_avatar", "author_bot", "content", "embeds"}
+	discordMessageColumns               = []string{"id", "channel_id", "timestamp", "edited_timestamp", "deleted_at", "mention_roles", "mentions", "mention_everyone", "author_id", "author_username", "author_discrim", "author_avatar", "author_bot", "content", "embeds"}
+	discordMessageColumnsWithoutDefault = []string{"id", "channel_id", "timestamp", "edited_timestamp", "deleted_at", "mention_roles", "mentions", "mention_everyone", "author_id", "author_username", "author_discrim", "author_avatar", "author_bot", "content", "embeds"}
 	discordMessageColumnsWithDefault    = []string{}
 	discordMessagePrimaryKeyColumns     = []string{"id"}
 )
@@ -354,7 +353,7 @@ func (discordMessageL) LoadMessageDiscordMessageEmbeds(e boil.Executor, singular
 
 	for _, foreign := range resultSlice {
 		for _, local := range slice {
-			if local.ID == foreign.MessageID.Int64 {
+			if local.ID == foreign.MessageID {
 				local.R.MessageDiscordMessageEmbeds = append(local.R.MessageDiscordMessageEmbeds, foreign)
 				break
 			}
@@ -413,7 +412,7 @@ func (o *DiscordMessage) AddMessageDiscordMessageRevisions(exec boil.Executor, i
 				strmangle.SetParamNames("\"", "\"", 1, []string{"message_id"}),
 				strmangle.WhereClause("\"", "\"", 2, discordMessageRevisionPrimaryKeyColumns),
 			)
-			values := []interface{}{o.ID, rel.ID}
+			values := []interface{}{o.ID, rel.RevisionNum, rel.MessageID}
 
 			if boil.DebugMode {
 				fmt.Fprintln(boil.DebugWriter, updateQuery)
@@ -487,8 +486,7 @@ func (o *DiscordMessage) AddMessageDiscordMessageEmbeds(exec boil.Executor, inse
 	var err error
 	for _, rel := range related {
 		if insert {
-			rel.MessageID.Int64 = o.ID
-			rel.MessageID.Valid = true
+			rel.MessageID = o.ID
 			if err = rel.Insert(exec); err != nil {
 				return errors.Wrap(err, "failed to insert into foreign table")
 			}
@@ -509,8 +507,7 @@ func (o *DiscordMessage) AddMessageDiscordMessageEmbeds(exec boil.Executor, inse
 				return errors.Wrap(err, "failed to update foreign table")
 			}
 
-			rel.MessageID.Int64 = o.ID
-			rel.MessageID.Valid = true
+			rel.MessageID = o.ID
 		}
 	}
 
@@ -531,141 +528,6 @@ func (o *DiscordMessage) AddMessageDiscordMessageEmbeds(exec boil.Executor, inse
 			rel.R.Message = o
 		}
 	}
-	return nil
-}
-
-// SetMessageDiscordMessageEmbedsG removes all previously related items of the
-// discord_message replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Message's MessageDiscordMessageEmbeds accordingly.
-// Replaces o.R.MessageDiscordMessageEmbeds with related.
-// Sets related.R.Message's MessageDiscordMessageEmbeds accordingly.
-// Uses the global database handle.
-func (o *DiscordMessage) SetMessageDiscordMessageEmbedsG(insert bool, related ...*DiscordMessageEmbed) error {
-	return o.SetMessageDiscordMessageEmbeds(boil.GetDB(), insert, related...)
-}
-
-// SetMessageDiscordMessageEmbedsP removes all previously related items of the
-// discord_message replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Message's MessageDiscordMessageEmbeds accordingly.
-// Replaces o.R.MessageDiscordMessageEmbeds with related.
-// Sets related.R.Message's MessageDiscordMessageEmbeds accordingly.
-// Panics on error.
-func (o *DiscordMessage) SetMessageDiscordMessageEmbedsP(exec boil.Executor, insert bool, related ...*DiscordMessageEmbed) {
-	if err := o.SetMessageDiscordMessageEmbeds(exec, insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// SetMessageDiscordMessageEmbedsGP removes all previously related items of the
-// discord_message replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Message's MessageDiscordMessageEmbeds accordingly.
-// Replaces o.R.MessageDiscordMessageEmbeds with related.
-// Sets related.R.Message's MessageDiscordMessageEmbeds accordingly.
-// Uses the global database handle and panics on error.
-func (o *DiscordMessage) SetMessageDiscordMessageEmbedsGP(insert bool, related ...*DiscordMessageEmbed) {
-	if err := o.SetMessageDiscordMessageEmbeds(boil.GetDB(), insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// SetMessageDiscordMessageEmbeds removes all previously related items of the
-// discord_message replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Message's MessageDiscordMessageEmbeds accordingly.
-// Replaces o.R.MessageDiscordMessageEmbeds with related.
-// Sets related.R.Message's MessageDiscordMessageEmbeds accordingly.
-func (o *DiscordMessage) SetMessageDiscordMessageEmbeds(exec boil.Executor, insert bool, related ...*DiscordMessageEmbed) error {
-	query := "update \"discord_message_embeds\" set \"message_id\" = null where \"message_id\" = $1"
-	values := []interface{}{o.ID}
-	if boil.DebugMode {
-		fmt.Fprintln(boil.DebugWriter, query)
-		fmt.Fprintln(boil.DebugWriter, values)
-	}
-
-	_, err := exec.Exec(query, values...)
-	if err != nil {
-		return errors.Wrap(err, "failed to remove relationships before set")
-	}
-
-	if o.R != nil {
-		for _, rel := range o.R.MessageDiscordMessageEmbeds {
-			rel.MessageID.Valid = false
-			if rel.R == nil {
-				continue
-			}
-
-			rel.R.Message = nil
-		}
-
-		o.R.MessageDiscordMessageEmbeds = nil
-	}
-	return o.AddMessageDiscordMessageEmbeds(exec, insert, related...)
-}
-
-// RemoveMessageDiscordMessageEmbedsG relationships from objects passed in.
-// Removes related items from R.MessageDiscordMessageEmbeds (uses pointer comparison, removal does not keep order)
-// Sets related.R.Message.
-// Uses the global database handle.
-func (o *DiscordMessage) RemoveMessageDiscordMessageEmbedsG(related ...*DiscordMessageEmbed) error {
-	return o.RemoveMessageDiscordMessageEmbeds(boil.GetDB(), related...)
-}
-
-// RemoveMessageDiscordMessageEmbedsP relationships from objects passed in.
-// Removes related items from R.MessageDiscordMessageEmbeds (uses pointer comparison, removal does not keep order)
-// Sets related.R.Message.
-// Panics on error.
-func (o *DiscordMessage) RemoveMessageDiscordMessageEmbedsP(exec boil.Executor, related ...*DiscordMessageEmbed) {
-	if err := o.RemoveMessageDiscordMessageEmbeds(exec, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// RemoveMessageDiscordMessageEmbedsGP relationships from objects passed in.
-// Removes related items from R.MessageDiscordMessageEmbeds (uses pointer comparison, removal does not keep order)
-// Sets related.R.Message.
-// Uses the global database handle and panics on error.
-func (o *DiscordMessage) RemoveMessageDiscordMessageEmbedsGP(related ...*DiscordMessageEmbed) {
-	if err := o.RemoveMessageDiscordMessageEmbeds(boil.GetDB(), related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// RemoveMessageDiscordMessageEmbeds relationships from objects passed in.
-// Removes related items from R.MessageDiscordMessageEmbeds (uses pointer comparison, removal does not keep order)
-// Sets related.R.Message.
-func (o *DiscordMessage) RemoveMessageDiscordMessageEmbeds(exec boil.Executor, related ...*DiscordMessageEmbed) error {
-	var err error
-	for _, rel := range related {
-		rel.MessageID.Valid = false
-		if rel.R != nil {
-			rel.R.Message = nil
-		}
-		if err = rel.Update(exec, "message_id"); err != nil {
-			return err
-		}
-	}
-	if o.R == nil {
-		return nil
-	}
-
-	for _, rel := range related {
-		for i, ri := range o.R.MessageDiscordMessageEmbeds {
-			if rel != ri {
-				continue
-			}
-
-			ln := len(o.R.MessageDiscordMessageEmbeds)
-			if ln > 1 && i < ln-1 {
-				o.R.MessageDiscordMessageEmbeds[i] = o.R.MessageDiscordMessageEmbeds[ln-1]
-			}
-			o.R.MessageDiscordMessageEmbeds = o.R.MessageDiscordMessageEmbeds[:ln-1]
-			break
-		}
-	}
-
 	return nil
 }
 

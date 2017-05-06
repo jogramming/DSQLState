@@ -413,10 +413,8 @@ func testDiscordMessageToManyMessageDiscordMessageEmbeds(t *testing.T) {
 	randomize.Struct(seed, &b, discordMessageEmbedDBTypes, false, discordMessageEmbedColumnsWithDefault...)
 	randomize.Struct(seed, &c, discordMessageEmbedDBTypes, false, discordMessageEmbedColumnsWithDefault...)
 
-	b.MessageID.Valid = true
-	c.MessageID.Valid = true
-	b.MessageID.Int64 = a.ID
-	c.MessageID.Int64 = a.ID
+	b.MessageID = a.ID
+	c.MessageID = a.ID
 	if err = b.Insert(tx); err != nil {
 		t.Fatal(err)
 	}
@@ -431,10 +429,10 @@ func testDiscordMessageToManyMessageDiscordMessageEmbeds(t *testing.T) {
 
 	bFound, cFound := false, false
 	for _, v := range discordMessageEmbed {
-		if v.MessageID.Int64 == b.MessageID.Int64 {
+		if v.MessageID == b.MessageID {
 			bFound = true
 		}
-		if v.MessageID.Int64 == c.MessageID.Int64 {
+		if v.MessageID == c.MessageID {
 			cFound = true
 		}
 	}
@@ -585,11 +583,11 @@ func testDiscordMessageToManyAddOpMessageDiscordMessageEmbeds(t *testing.T) {
 		first := x[0]
 		second := x[1]
 
-		if a.ID != first.MessageID.Int64 {
-			t.Error("foreign key was wrong value", a.ID, first.MessageID.Int64)
+		if a.ID != first.MessageID {
+			t.Error("foreign key was wrong value", a.ID, first.MessageID)
 		}
-		if a.ID != second.MessageID.Int64 {
-			t.Error("foreign key was wrong value", a.ID, second.MessageID.Int64)
+		if a.ID != second.MessageID {
+			t.Error("foreign key was wrong value", a.ID, second.MessageID)
 		}
 
 		if first.R.Message != &a {
@@ -613,179 +611,6 @@ func testDiscordMessageToManyAddOpMessageDiscordMessageEmbeds(t *testing.T) {
 		if want := int64((i + 1) * 2); count != want {
 			t.Error("want", want, "got", count)
 		}
-	}
-}
-
-func testDiscordMessageToManySetOpMessageDiscordMessageEmbeds(t *testing.T) {
-	var err error
-
-	tx := MustTx(boil.Begin())
-	defer tx.Rollback()
-
-	var a DiscordMessage
-	var b, c, d, e DiscordMessageEmbed
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, discordMessageDBTypes, false, strmangle.SetComplement(discordMessagePrimaryKeyColumns, discordMessageColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	foreigners := []*DiscordMessageEmbed{&b, &c, &d, &e}
-	for _, x := range foreigners {
-		if err = randomize.Struct(seed, x, discordMessageEmbedDBTypes, false, strmangle.SetComplement(discordMessageEmbedPrimaryKeyColumns, discordMessageEmbedColumnsWithoutDefault)...); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if err = a.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-	if err = b.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-	if err = c.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	err = a.SetMessageDiscordMessageEmbeds(tx, false, &b, &c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := a.MessageDiscordMessageEmbeds(tx).Count()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Error("count was wrong:", count)
-	}
-
-	err = a.SetMessageDiscordMessageEmbeds(tx, true, &d, &e)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err = a.MessageDiscordMessageEmbeds(tx).Count()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Error("count was wrong:", count)
-	}
-
-	if b.MessageID.Valid {
-		t.Error("want b's foreign key value to be nil")
-	}
-	if c.MessageID.Valid {
-		t.Error("want c's foreign key value to be nil")
-	}
-	if a.ID != d.MessageID.Int64 {
-		t.Error("foreign key was wrong value", a.ID, d.MessageID.Int64)
-	}
-	if a.ID != e.MessageID.Int64 {
-		t.Error("foreign key was wrong value", a.ID, e.MessageID.Int64)
-	}
-
-	if b.R.Message != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if c.R.Message != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if d.R.Message != &a {
-		t.Error("relationship was not added properly to the foreign struct")
-	}
-	if e.R.Message != &a {
-		t.Error("relationship was not added properly to the foreign struct")
-	}
-
-	if a.R.MessageDiscordMessageEmbeds[0] != &d {
-		t.Error("relationship struct slice not set to correct value")
-	}
-	if a.R.MessageDiscordMessageEmbeds[1] != &e {
-		t.Error("relationship struct slice not set to correct value")
-	}
-}
-
-func testDiscordMessageToManyRemoveOpMessageDiscordMessageEmbeds(t *testing.T) {
-	var err error
-
-	tx := MustTx(boil.Begin())
-	defer tx.Rollback()
-
-	var a DiscordMessage
-	var b, c, d, e DiscordMessageEmbed
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, discordMessageDBTypes, false, strmangle.SetComplement(discordMessagePrimaryKeyColumns, discordMessageColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	foreigners := []*DiscordMessageEmbed{&b, &c, &d, &e}
-	for _, x := range foreigners {
-		if err = randomize.Struct(seed, x, discordMessageEmbedDBTypes, false, strmangle.SetComplement(discordMessageEmbedPrimaryKeyColumns, discordMessageEmbedColumnsWithoutDefault)...); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if err := a.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	err = a.AddMessageDiscordMessageEmbeds(tx, true, foreigners...)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := a.MessageDiscordMessageEmbeds(tx).Count()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 4 {
-		t.Error("count was wrong:", count)
-	}
-
-	err = a.RemoveMessageDiscordMessageEmbeds(tx, foreigners[:2]...)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	count, err = a.MessageDiscordMessageEmbeds(tx).Count()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Error("count was wrong:", count)
-	}
-
-	if b.MessageID.Valid {
-		t.Error("want b's foreign key value to be nil")
-	}
-	if c.MessageID.Valid {
-		t.Error("want c's foreign key value to be nil")
-	}
-
-	if b.R.Message != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if c.R.Message != nil {
-		t.Error("relationship was not removed properly from the foreign struct")
-	}
-	if d.R.Message != &a {
-		t.Error("relationship to a should have been preserved")
-	}
-	if e.R.Message != &a {
-		t.Error("relationship to a should have been preserved")
-	}
-
-	if len(a.R.MessageDiscordMessageEmbeds) != 2 {
-		t.Error("should have preserved two relationships")
-	}
-
-	// Removal doesn't do a stable deletion for performance so we have to flip the order
-	if a.R.MessageDiscordMessageEmbeds[1] != &d {
-		t.Error("relationship to d should have been preserved")
-	}
-	if a.R.MessageDiscordMessageEmbeds[0] != &e {
-		t.Error("relationship to e should have been preserved")
 	}
 }
 
@@ -859,7 +684,7 @@ func testDiscordMessagesSelect(t *testing.T) {
 }
 
 var (
-	discordMessageDBTypes = map[string]string{`AuthorAvatar`: `text`, `AuthorBot`: `boolean`, `AuthorDiscrim`: `integer`, `AuthorID`: `bigint`, `AuthorUsername`: `character varying`, `ChannelID`: `bigint`, `Content`: `text`, `DeletedAt`: `timestamp with time zone`, `EditedTimestamp`: `timestamp with time zone`, `Embeds`: `ARRAYbigint`, `GuildID`: `bigint`, `ID`: `bigint`, `MentionEveryone`: `boolean`, `MentionRoles`: `ARRAYbigint`, `Mentions`: `ARRAYbigint`, `Timestamp`: `timestamp with time zone`}
+	discordMessageDBTypes = map[string]string{`AuthorAvatar`: `text`, `AuthorBot`: `boolean`, `AuthorDiscrim`: `integer`, `AuthorID`: `bigint`, `AuthorUsername`: `character varying`, `ChannelID`: `bigint`, `Content`: `text`, `DeletedAt`: `timestamp with time zone`, `EditedTimestamp`: `timestamp with time zone`, `Embeds`: `ARRAYbigint`, `ID`: `bigint`, `MentionEveryone`: `boolean`, `MentionRoles`: `ARRAYbigint`, `Mentions`: `ARRAYbigint`, `Timestamp`: `timestamp with time zone`}
 	_                     = bytes.MinRead
 )
 

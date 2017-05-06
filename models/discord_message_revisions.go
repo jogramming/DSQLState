@@ -19,12 +19,11 @@ import (
 
 // DiscordMessageRevision is an object representing the database table.
 type DiscordMessageRevision struct {
-	ID        int64            `boil:"id" json:"id" toml:"id" yaml:"id"`
-	MessageID int64            `boil:"message_id" json:"message_id" toml:"message_id" yaml:"message_id"`
-	CreatedAt time.Time        `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
-	Number    int              `boil:"number" json:"number" toml:"number" yaml:"number"`
-	Content   string           `boil:"content" json:"content" toml:"content" yaml:"content"`
-	Embeds    types.Int64Array `boil:"embeds" json:"embeds,omitempty" toml:"embeds" yaml:"embeds,omitempty"`
+	RevisionNum int              `boil:"revision_num" json:"revision_num" toml:"revision_num" yaml:"revision_num"`
+	MessageID   int64            `boil:"message_id" json:"message_id" toml:"message_id" yaml:"message_id"`
+	CreatedAt   time.Time        `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
+	Content     string           `boil:"content" json:"content" toml:"content" yaml:"content"`
+	Embeds      types.Int64Array `boil:"embeds" json:"embeds" toml:"embeds" yaml:"embeds"`
 
 	R *discordMessageRevisionR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L discordMessageRevisionL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -32,18 +31,17 @@ type DiscordMessageRevision struct {
 
 // discordMessageRevisionR is where relationships are stored.
 type discordMessageRevisionR struct {
-	Message                      *DiscordMessage
-	RevisionDiscordMessageEmbeds DiscordMessageEmbedSlice
+	Message *DiscordMessage
 }
 
 // discordMessageRevisionL is where Load methods for each relationship are stored.
 type discordMessageRevisionL struct{}
 
 var (
-	discordMessageRevisionColumns               = []string{"id", "message_id", "created_at", "number", "content", "embeds"}
-	discordMessageRevisionColumnsWithoutDefault = []string{"message_id", "created_at", "number", "content", "embeds"}
-	discordMessageRevisionColumnsWithDefault    = []string{"id"}
-	discordMessageRevisionPrimaryKeyColumns     = []string{"id"}
+	discordMessageRevisionColumns               = []string{"revision_num", "message_id", "created_at", "content", "embeds"}
+	discordMessageRevisionColumnsWithoutDefault = []string{"revision_num", "message_id", "created_at", "content", "embeds"}
+	discordMessageRevisionColumnsWithDefault    = []string{}
+	discordMessageRevisionPrimaryKeyColumns     = []string{"revision_num", "message_id"}
 )
 
 type (
@@ -194,30 +192,6 @@ func (o *DiscordMessageRevision) Message(exec boil.Executor, mods ...qm.QueryMod
 	return query
 }
 
-// RevisionDiscordMessageEmbedsG retrieves all the discord_message_embed's discord message embeds via revision_id column.
-func (o *DiscordMessageRevision) RevisionDiscordMessageEmbedsG(mods ...qm.QueryMod) discordMessageEmbedQuery {
-	return o.RevisionDiscordMessageEmbeds(boil.GetDB(), mods...)
-}
-
-// RevisionDiscordMessageEmbeds retrieves all the discord_message_embed's discord message embeds with an executor via revision_id column.
-func (o *DiscordMessageRevision) RevisionDiscordMessageEmbeds(exec boil.Executor, mods ...qm.QueryMod) discordMessageEmbedQuery {
-	queryMods := []qm.QueryMod{
-		qm.Select("\"a\".*"),
-	}
-
-	if len(mods) != 0 {
-		queryMods = append(queryMods, mods...)
-	}
-
-	queryMods = append(queryMods,
-		qm.Where("\"a\".\"revision_id\"=?", o.ID),
-	)
-
-	query := DiscordMessageEmbeds(exec, queryMods...)
-	queries.SetFrom(query.Query, "\"discord_message_embeds\" as \"a\"")
-	return query
-}
-
 // LoadMessage allows an eager lookup of values, cached into the
 // loaded structs of the objects.
 func (discordMessageRevisionL) LoadMessage(e boil.Executor, singular bool, maybeDiscordMessageRevision interface{}) error {
@@ -284,71 +258,6 @@ func (discordMessageRevisionL) LoadMessage(e boil.Executor, singular bool, maybe
 	return nil
 }
 
-// LoadRevisionDiscordMessageEmbeds allows an eager lookup of values, cached into the
-// loaded structs of the objects.
-func (discordMessageRevisionL) LoadRevisionDiscordMessageEmbeds(e boil.Executor, singular bool, maybeDiscordMessageRevision interface{}) error {
-	var slice []*DiscordMessageRevision
-	var object *DiscordMessageRevision
-
-	count := 1
-	if singular {
-		object = maybeDiscordMessageRevision.(*DiscordMessageRevision)
-	} else {
-		slice = *maybeDiscordMessageRevision.(*DiscordMessageRevisionSlice)
-		count = len(slice)
-	}
-
-	args := make([]interface{}, count)
-	if singular {
-		if object.R == nil {
-			object.R = &discordMessageRevisionR{}
-		}
-		args[0] = object.ID
-	} else {
-		for i, obj := range slice {
-			if obj.R == nil {
-				obj.R = &discordMessageRevisionR{}
-			}
-			args[i] = obj.ID
-		}
-	}
-
-	query := fmt.Sprintf(
-		"select * from \"discord_message_embeds\" where \"revision_id\" in (%s)",
-		strmangle.Placeholders(dialect.IndexPlaceholders, count, 1, 1),
-	)
-	if boil.DebugMode {
-		fmt.Fprintf(boil.DebugWriter, "%s\n%v\n", query, args)
-	}
-
-	results, err := e.Query(query, args...)
-	if err != nil {
-		return errors.Wrap(err, "failed to eager load discord_message_embeds")
-	}
-	defer results.Close()
-
-	var resultSlice []*DiscordMessageEmbed
-	if err = queries.Bind(results, &resultSlice); err != nil {
-		return errors.Wrap(err, "failed to bind eager loaded slice discord_message_embeds")
-	}
-
-	if singular {
-		object.R.RevisionDiscordMessageEmbeds = resultSlice
-		return nil
-	}
-
-	for _, foreign := range resultSlice {
-		for _, local := range slice {
-			if local.ID == foreign.RevisionID.Int64 {
-				local.R.RevisionDiscordMessageEmbeds = append(local.R.RevisionDiscordMessageEmbeds, foreign)
-				break
-			}
-		}
-	}
-
-	return nil
-}
-
 // SetMessageG of the discord_message_revision to the related item.
 // Sets o.R.Message to related.
 // Adds o to related.R.MessageDiscordMessageRevisions.
@@ -393,7 +302,7 @@ func (o *DiscordMessageRevision) SetMessage(exec boil.Executor, insert bool, rel
 		strmangle.SetParamNames("\"", "\"", 1, []string{"message_id"}),
 		strmangle.WhereClause("\"", "\"", 2, discordMessageRevisionPrimaryKeyColumns),
 	)
-	values := []interface{}{related.ID, o.ID}
+	values := []interface{}{related.ID, o.RevisionNum, o.MessageID}
 
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, updateQuery)
@@ -425,227 +334,6 @@ func (o *DiscordMessageRevision) SetMessage(exec boil.Executor, insert bool, rel
 	return nil
 }
 
-// AddRevisionDiscordMessageEmbedsG adds the given related objects to the existing relationships
-// of the discord_message_revision, optionally inserting them as new records.
-// Appends related to o.R.RevisionDiscordMessageEmbeds.
-// Sets related.R.Revision appropriately.
-// Uses the global database handle.
-func (o *DiscordMessageRevision) AddRevisionDiscordMessageEmbedsG(insert bool, related ...*DiscordMessageEmbed) error {
-	return o.AddRevisionDiscordMessageEmbeds(boil.GetDB(), insert, related...)
-}
-
-// AddRevisionDiscordMessageEmbedsP adds the given related objects to the existing relationships
-// of the discord_message_revision, optionally inserting them as new records.
-// Appends related to o.R.RevisionDiscordMessageEmbeds.
-// Sets related.R.Revision appropriately.
-// Panics on error.
-func (o *DiscordMessageRevision) AddRevisionDiscordMessageEmbedsP(exec boil.Executor, insert bool, related ...*DiscordMessageEmbed) {
-	if err := o.AddRevisionDiscordMessageEmbeds(exec, insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// AddRevisionDiscordMessageEmbedsGP adds the given related objects to the existing relationships
-// of the discord_message_revision, optionally inserting them as new records.
-// Appends related to o.R.RevisionDiscordMessageEmbeds.
-// Sets related.R.Revision appropriately.
-// Uses the global database handle and panics on error.
-func (o *DiscordMessageRevision) AddRevisionDiscordMessageEmbedsGP(insert bool, related ...*DiscordMessageEmbed) {
-	if err := o.AddRevisionDiscordMessageEmbeds(boil.GetDB(), insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// AddRevisionDiscordMessageEmbeds adds the given related objects to the existing relationships
-// of the discord_message_revision, optionally inserting them as new records.
-// Appends related to o.R.RevisionDiscordMessageEmbeds.
-// Sets related.R.Revision appropriately.
-func (o *DiscordMessageRevision) AddRevisionDiscordMessageEmbeds(exec boil.Executor, insert bool, related ...*DiscordMessageEmbed) error {
-	var err error
-	for _, rel := range related {
-		if insert {
-			rel.RevisionID.Int64 = o.ID
-			rel.RevisionID.Valid = true
-			if err = rel.Insert(exec); err != nil {
-				return errors.Wrap(err, "failed to insert into foreign table")
-			}
-		} else {
-			updateQuery := fmt.Sprintf(
-				"UPDATE \"discord_message_embeds\" SET %s WHERE %s",
-				strmangle.SetParamNames("\"", "\"", 1, []string{"revision_id"}),
-				strmangle.WhereClause("\"", "\"", 2, discordMessageEmbedPrimaryKeyColumns),
-			)
-			values := []interface{}{o.ID, rel.ID}
-
-			if boil.DebugMode {
-				fmt.Fprintln(boil.DebugWriter, updateQuery)
-				fmt.Fprintln(boil.DebugWriter, values)
-			}
-
-			if _, err = exec.Exec(updateQuery, values...); err != nil {
-				return errors.Wrap(err, "failed to update foreign table")
-			}
-
-			rel.RevisionID.Int64 = o.ID
-			rel.RevisionID.Valid = true
-		}
-	}
-
-	if o.R == nil {
-		o.R = &discordMessageRevisionR{
-			RevisionDiscordMessageEmbeds: related,
-		}
-	} else {
-		o.R.RevisionDiscordMessageEmbeds = append(o.R.RevisionDiscordMessageEmbeds, related...)
-	}
-
-	for _, rel := range related {
-		if rel.R == nil {
-			rel.R = &discordMessageEmbedR{
-				Revision: o,
-			}
-		} else {
-			rel.R.Revision = o
-		}
-	}
-	return nil
-}
-
-// SetRevisionDiscordMessageEmbedsG removes all previously related items of the
-// discord_message_revision replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Revision's RevisionDiscordMessageEmbeds accordingly.
-// Replaces o.R.RevisionDiscordMessageEmbeds with related.
-// Sets related.R.Revision's RevisionDiscordMessageEmbeds accordingly.
-// Uses the global database handle.
-func (o *DiscordMessageRevision) SetRevisionDiscordMessageEmbedsG(insert bool, related ...*DiscordMessageEmbed) error {
-	return o.SetRevisionDiscordMessageEmbeds(boil.GetDB(), insert, related...)
-}
-
-// SetRevisionDiscordMessageEmbedsP removes all previously related items of the
-// discord_message_revision replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Revision's RevisionDiscordMessageEmbeds accordingly.
-// Replaces o.R.RevisionDiscordMessageEmbeds with related.
-// Sets related.R.Revision's RevisionDiscordMessageEmbeds accordingly.
-// Panics on error.
-func (o *DiscordMessageRevision) SetRevisionDiscordMessageEmbedsP(exec boil.Executor, insert bool, related ...*DiscordMessageEmbed) {
-	if err := o.SetRevisionDiscordMessageEmbeds(exec, insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// SetRevisionDiscordMessageEmbedsGP removes all previously related items of the
-// discord_message_revision replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Revision's RevisionDiscordMessageEmbeds accordingly.
-// Replaces o.R.RevisionDiscordMessageEmbeds with related.
-// Sets related.R.Revision's RevisionDiscordMessageEmbeds accordingly.
-// Uses the global database handle and panics on error.
-func (o *DiscordMessageRevision) SetRevisionDiscordMessageEmbedsGP(insert bool, related ...*DiscordMessageEmbed) {
-	if err := o.SetRevisionDiscordMessageEmbeds(boil.GetDB(), insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// SetRevisionDiscordMessageEmbeds removes all previously related items of the
-// discord_message_revision replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Revision's RevisionDiscordMessageEmbeds accordingly.
-// Replaces o.R.RevisionDiscordMessageEmbeds with related.
-// Sets related.R.Revision's RevisionDiscordMessageEmbeds accordingly.
-func (o *DiscordMessageRevision) SetRevisionDiscordMessageEmbeds(exec boil.Executor, insert bool, related ...*DiscordMessageEmbed) error {
-	query := "update \"discord_message_embeds\" set \"revision_id\" = null where \"revision_id\" = $1"
-	values := []interface{}{o.ID}
-	if boil.DebugMode {
-		fmt.Fprintln(boil.DebugWriter, query)
-		fmt.Fprintln(boil.DebugWriter, values)
-	}
-
-	_, err := exec.Exec(query, values...)
-	if err != nil {
-		return errors.Wrap(err, "failed to remove relationships before set")
-	}
-
-	if o.R != nil {
-		for _, rel := range o.R.RevisionDiscordMessageEmbeds {
-			rel.RevisionID.Valid = false
-			if rel.R == nil {
-				continue
-			}
-
-			rel.R.Revision = nil
-		}
-
-		o.R.RevisionDiscordMessageEmbeds = nil
-	}
-	return o.AddRevisionDiscordMessageEmbeds(exec, insert, related...)
-}
-
-// RemoveRevisionDiscordMessageEmbedsG relationships from objects passed in.
-// Removes related items from R.RevisionDiscordMessageEmbeds (uses pointer comparison, removal does not keep order)
-// Sets related.R.Revision.
-// Uses the global database handle.
-func (o *DiscordMessageRevision) RemoveRevisionDiscordMessageEmbedsG(related ...*DiscordMessageEmbed) error {
-	return o.RemoveRevisionDiscordMessageEmbeds(boil.GetDB(), related...)
-}
-
-// RemoveRevisionDiscordMessageEmbedsP relationships from objects passed in.
-// Removes related items from R.RevisionDiscordMessageEmbeds (uses pointer comparison, removal does not keep order)
-// Sets related.R.Revision.
-// Panics on error.
-func (o *DiscordMessageRevision) RemoveRevisionDiscordMessageEmbedsP(exec boil.Executor, related ...*DiscordMessageEmbed) {
-	if err := o.RemoveRevisionDiscordMessageEmbeds(exec, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// RemoveRevisionDiscordMessageEmbedsGP relationships from objects passed in.
-// Removes related items from R.RevisionDiscordMessageEmbeds (uses pointer comparison, removal does not keep order)
-// Sets related.R.Revision.
-// Uses the global database handle and panics on error.
-func (o *DiscordMessageRevision) RemoveRevisionDiscordMessageEmbedsGP(related ...*DiscordMessageEmbed) {
-	if err := o.RemoveRevisionDiscordMessageEmbeds(boil.GetDB(), related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// RemoveRevisionDiscordMessageEmbeds relationships from objects passed in.
-// Removes related items from R.RevisionDiscordMessageEmbeds (uses pointer comparison, removal does not keep order)
-// Sets related.R.Revision.
-func (o *DiscordMessageRevision) RemoveRevisionDiscordMessageEmbeds(exec boil.Executor, related ...*DiscordMessageEmbed) error {
-	var err error
-	for _, rel := range related {
-		rel.RevisionID.Valid = false
-		if rel.R != nil {
-			rel.R.Revision = nil
-		}
-		if err = rel.Update(exec, "revision_id"); err != nil {
-			return err
-		}
-	}
-	if o.R == nil {
-		return nil
-	}
-
-	for _, rel := range related {
-		for i, ri := range o.R.RevisionDiscordMessageEmbeds {
-			if rel != ri {
-				continue
-			}
-
-			ln := len(o.R.RevisionDiscordMessageEmbeds)
-			if ln > 1 && i < ln-1 {
-				o.R.RevisionDiscordMessageEmbeds[i] = o.R.RevisionDiscordMessageEmbeds[ln-1]
-			}
-			o.R.RevisionDiscordMessageEmbeds = o.R.RevisionDiscordMessageEmbeds[:ln-1]
-			break
-		}
-	}
-
-	return nil
-}
-
 // DiscordMessageRevisionsG retrieves all records.
 func DiscordMessageRevisionsG(mods ...qm.QueryMod) discordMessageRevisionQuery {
 	return DiscordMessageRevisions(boil.GetDB(), mods...)
@@ -658,13 +346,13 @@ func DiscordMessageRevisions(exec boil.Executor, mods ...qm.QueryMod) discordMes
 }
 
 // FindDiscordMessageRevisionG retrieves a single record by ID.
-func FindDiscordMessageRevisionG(id int64, selectCols ...string) (*DiscordMessageRevision, error) {
-	return FindDiscordMessageRevision(boil.GetDB(), id, selectCols...)
+func FindDiscordMessageRevisionG(revisionNum int, messageID int64, selectCols ...string) (*DiscordMessageRevision, error) {
+	return FindDiscordMessageRevision(boil.GetDB(), revisionNum, messageID, selectCols...)
 }
 
 // FindDiscordMessageRevisionGP retrieves a single record by ID, and panics on error.
-func FindDiscordMessageRevisionGP(id int64, selectCols ...string) *DiscordMessageRevision {
-	retobj, err := FindDiscordMessageRevision(boil.GetDB(), id, selectCols...)
+func FindDiscordMessageRevisionGP(revisionNum int, messageID int64, selectCols ...string) *DiscordMessageRevision {
+	retobj, err := FindDiscordMessageRevision(boil.GetDB(), revisionNum, messageID, selectCols...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -674,7 +362,7 @@ func FindDiscordMessageRevisionGP(id int64, selectCols ...string) *DiscordMessag
 
 // FindDiscordMessageRevision retrieves a single record by ID with an executor.
 // If selectCols is empty Find will return all columns.
-func FindDiscordMessageRevision(exec boil.Executor, id int64, selectCols ...string) (*DiscordMessageRevision, error) {
+func FindDiscordMessageRevision(exec boil.Executor, revisionNum int, messageID int64, selectCols ...string) (*DiscordMessageRevision, error) {
 	discordMessageRevisionObj := &DiscordMessageRevision{}
 
 	sel := "*"
@@ -682,10 +370,10 @@ func FindDiscordMessageRevision(exec boil.Executor, id int64, selectCols ...stri
 		sel = strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, selectCols), ",")
 	}
 	query := fmt.Sprintf(
-		"select %s from \"discord_message_revisions\" where \"id\"=$1", sel,
+		"select %s from \"discord_message_revisions\" where \"revision_num\"=$1 AND \"message_id\"=$2", sel,
 	)
 
-	q := queries.Raw(exec, query, id)
+	q := queries.Raw(exec, query, revisionNum, messageID)
 
 	err := q.Bind(discordMessageRevisionObj)
 	if err != nil {
@@ -699,8 +387,8 @@ func FindDiscordMessageRevision(exec boil.Executor, id int64, selectCols ...stri
 }
 
 // FindDiscordMessageRevisionP retrieves a single record by ID with an executor, and panics on error.
-func FindDiscordMessageRevisionP(exec boil.Executor, id int64, selectCols ...string) *DiscordMessageRevision {
-	retobj, err := FindDiscordMessageRevision(exec, id, selectCols...)
+func FindDiscordMessageRevisionP(exec boil.Executor, revisionNum int, messageID int64, selectCols ...string) *DiscordMessageRevision {
+	retobj, err := FindDiscordMessageRevision(exec, revisionNum, messageID, selectCols...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -945,7 +633,7 @@ func (o DiscordMessageRevisionSlice) UpdateAll(exec boil.Executor, cols M) error
 	}
 
 	sql := fmt.Sprintf(
-		"UPDATE \"discord_message_revisions\" SET %s WHERE (\"id\") IN (%s)",
+		"UPDATE \"discord_message_revisions\" SET %s WHERE (\"revision_num\",\"message_id\") IN (%s)",
 		strmangle.SetParamNames("\"", "\"", 1, colNames),
 		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(discordMessageRevisionPrimaryKeyColumns), len(colNames)+1, len(discordMessageRevisionPrimaryKeyColumns)),
 	)
@@ -1134,7 +822,7 @@ func (o *DiscordMessageRevision) Delete(exec boil.Executor) error {
 	}
 
 	args := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(o)), discordMessageRevisionPrimaryKeyMapping)
-	sql := "DELETE FROM \"discord_message_revisions\" WHERE \"id\"=$1"
+	sql := "DELETE FROM \"discord_message_revisions\" WHERE \"revision_num\"=$1 AND \"message_id\"=$2"
 
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, sql)
@@ -1255,7 +943,7 @@ func (o *DiscordMessageRevision) ReloadG() error {
 // Reload refetches the object from the database
 // using the primary keys with an executor.
 func (o *DiscordMessageRevision) Reload(exec boil.Executor) error {
-	ret, err := FindDiscordMessageRevision(exec, o.ID)
+	ret, err := FindDiscordMessageRevision(exec, o.RevisionNum, o.MessageID)
 	if err != nil {
 		return err
 	}
@@ -1325,17 +1013,17 @@ func (o *DiscordMessageRevisionSlice) ReloadAll(exec boil.Executor) error {
 }
 
 // DiscordMessageRevisionExists checks if the DiscordMessageRevision row exists.
-func DiscordMessageRevisionExists(exec boil.Executor, id int64) (bool, error) {
+func DiscordMessageRevisionExists(exec boil.Executor, revisionNum int, messageID int64) (bool, error) {
 	var exists bool
 
-	sql := "select exists(select 1 from \"discord_message_revisions\" where \"id\"=$1 limit 1)"
+	sql := "select exists(select 1 from \"discord_message_revisions\" where \"revision_num\"=$1 AND \"message_id\"=$2 limit 1)"
 
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, sql)
-		fmt.Fprintln(boil.DebugWriter, id)
+		fmt.Fprintln(boil.DebugWriter, revisionNum, messageID)
 	}
 
-	row := exec.QueryRow(sql, id)
+	row := exec.QueryRow(sql, revisionNum, messageID)
 
 	err := row.Scan(&exists)
 	if err != nil {
@@ -1346,13 +1034,13 @@ func DiscordMessageRevisionExists(exec boil.Executor, id int64) (bool, error) {
 }
 
 // DiscordMessageRevisionExistsG checks if the DiscordMessageRevision row exists.
-func DiscordMessageRevisionExistsG(id int64) (bool, error) {
-	return DiscordMessageRevisionExists(boil.GetDB(), id)
+func DiscordMessageRevisionExistsG(revisionNum int, messageID int64) (bool, error) {
+	return DiscordMessageRevisionExists(boil.GetDB(), revisionNum, messageID)
 }
 
 // DiscordMessageRevisionExistsGP checks if the DiscordMessageRevision row exists. Panics on error.
-func DiscordMessageRevisionExistsGP(id int64) bool {
-	e, err := DiscordMessageRevisionExists(boil.GetDB(), id)
+func DiscordMessageRevisionExistsGP(revisionNum int, messageID int64) bool {
+	e, err := DiscordMessageRevisionExists(boil.GetDB(), revisionNum, messageID)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -1361,8 +1049,8 @@ func DiscordMessageRevisionExistsGP(id int64) bool {
 }
 
 // DiscordMessageRevisionExistsP checks if the DiscordMessageRevision row exists. Panics on error.
-func DiscordMessageRevisionExistsP(exec boil.Executor, id int64) bool {
-	e, err := DiscordMessageRevisionExists(exec, id)
+func DiscordMessageRevisionExistsP(exec boil.Executor, revisionNum int, messageID int64) bool {
+	e, err := DiscordMessageRevisionExists(exec, revisionNum, messageID)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}

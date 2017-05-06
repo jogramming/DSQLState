@@ -336,13 +336,11 @@ func testDiscordMessageEmbedToOneDiscordMessageUsingMessage(t *testing.T) {
 		t.Errorf("Unable to randomize DiscordMessage struct: %s", err)
 	}
 
-	local.MessageID.Valid = true
-
 	if err := foreign.Insert(tx); err != nil {
 		t.Fatal(err)
 	}
 
-	local.MessageID.Int64 = foreign.ID
+	local.MessageID = foreign.ID
 	if err := local.Insert(tx); err != nil {
 		t.Fatal(err)
 	}
@@ -369,58 +367,6 @@ func testDiscordMessageEmbedToOneDiscordMessageUsingMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 	if local.R.Message == nil {
-		t.Error("struct should have been eager loaded")
-	}
-}
-
-func testDiscordMessageEmbedToOneDiscordMessageRevisionUsingRevision(t *testing.T) {
-	tx := MustTx(boil.Begin())
-	defer tx.Rollback()
-
-	var local DiscordMessageEmbed
-	var foreign DiscordMessageRevision
-
-	seed := randomize.NewSeed()
-	if err := randomize.Struct(seed, &local, discordMessageEmbedDBTypes, true, discordMessageEmbedColumnsWithDefault...); err != nil {
-		t.Errorf("Unable to randomize DiscordMessageEmbed struct: %s", err)
-	}
-	if err := randomize.Struct(seed, &foreign, discordMessageRevisionDBTypes, true, discordMessageRevisionColumnsWithDefault...); err != nil {
-		t.Errorf("Unable to randomize DiscordMessageRevision struct: %s", err)
-	}
-
-	local.RevisionID.Valid = true
-
-	if err := foreign.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	local.RevisionID.Int64 = foreign.ID
-	if err := local.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	check, err := local.Revision(tx).One()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if check.ID != foreign.ID {
-		t.Errorf("want: %v, got %v", foreign.ID, check.ID)
-	}
-
-	slice := DiscordMessageEmbedSlice{&local}
-	if err = local.L.LoadRevision(tx, false, &slice); err != nil {
-		t.Fatal(err)
-	}
-	if local.R.Revision == nil {
-		t.Error("struct should have been eager loaded")
-	}
-
-	local.R.Revision = nil
-	if err = local.L.LoadRevision(tx, true, &local); err != nil {
-		t.Fatal(err)
-	}
-	if local.R.Revision == nil {
 		t.Error("struct should have been eager loaded")
 	}
 }
@@ -465,180 +411,22 @@ func testDiscordMessageEmbedToOneSetOpDiscordMessageUsingMessage(t *testing.T) {
 		if x.R.MessageDiscordMessageEmbeds[0] != &a {
 			t.Error("failed to append to foreign relationship struct")
 		}
-		if a.MessageID.Int64 != x.ID {
-			t.Error("foreign key was wrong value", a.MessageID.Int64)
+		if a.MessageID != x.ID {
+			t.Error("foreign key was wrong value", a.MessageID)
 		}
 
-		zero := reflect.Zero(reflect.TypeOf(a.MessageID.Int64))
-		reflect.Indirect(reflect.ValueOf(&a.MessageID.Int64)).Set(zero)
+		zero := reflect.Zero(reflect.TypeOf(a.MessageID))
+		reflect.Indirect(reflect.ValueOf(&a.MessageID)).Set(zero)
 
 		if err = a.Reload(tx); err != nil {
 			t.Fatal("failed to reload", err)
 		}
 
-		if a.MessageID.Int64 != x.ID {
-			t.Error("foreign key was wrong value", a.MessageID.Int64, x.ID)
+		if a.MessageID != x.ID {
+			t.Error("foreign key was wrong value", a.MessageID, x.ID)
 		}
 	}
 }
-
-func testDiscordMessageEmbedToOneRemoveOpDiscordMessageUsingMessage(t *testing.T) {
-	var err error
-
-	tx := MustTx(boil.Begin())
-	defer tx.Rollback()
-
-	var a DiscordMessageEmbed
-	var b DiscordMessage
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, discordMessageEmbedDBTypes, false, strmangle.SetComplement(discordMessageEmbedPrimaryKeyColumns, discordMessageEmbedColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	if err = randomize.Struct(seed, &b, discordMessageDBTypes, false, strmangle.SetComplement(discordMessagePrimaryKeyColumns, discordMessageColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-
-	if err = a.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	if err = a.SetMessage(tx, true, &b); err != nil {
-		t.Fatal(err)
-	}
-
-	if err = a.RemoveMessage(tx, &b); err != nil {
-		t.Error("failed to remove relationship")
-	}
-
-	count, err := a.Message(tx).Count()
-	if err != nil {
-		t.Error(err)
-	}
-	if count != 0 {
-		t.Error("want no relationships remaining")
-	}
-
-	if a.R.Message != nil {
-		t.Error("R struct entry should be nil")
-	}
-
-	if a.MessageID.Valid {
-		t.Error("foreign key value should be nil")
-	}
-
-	if len(b.R.MessageDiscordMessageEmbeds) != 0 {
-		t.Error("failed to remove a from b's relationships")
-	}
-}
-
-func testDiscordMessageEmbedToOneSetOpDiscordMessageRevisionUsingRevision(t *testing.T) {
-	var err error
-
-	tx := MustTx(boil.Begin())
-	defer tx.Rollback()
-
-	var a DiscordMessageEmbed
-	var b, c DiscordMessageRevision
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, discordMessageEmbedDBTypes, false, strmangle.SetComplement(discordMessageEmbedPrimaryKeyColumns, discordMessageEmbedColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	if err = randomize.Struct(seed, &b, discordMessageRevisionDBTypes, false, strmangle.SetComplement(discordMessageRevisionPrimaryKeyColumns, discordMessageRevisionColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	if err = randomize.Struct(seed, &c, discordMessageRevisionDBTypes, false, strmangle.SetComplement(discordMessageRevisionPrimaryKeyColumns, discordMessageRevisionColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := a.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-	if err = b.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	for i, x := range []*DiscordMessageRevision{&b, &c} {
-		err = a.SetRevision(tx, i != 0, x)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if a.R.Revision != x {
-			t.Error("relationship struct not set to correct value")
-		}
-
-		if x.R.RevisionDiscordMessageEmbeds[0] != &a {
-			t.Error("failed to append to foreign relationship struct")
-		}
-		if a.RevisionID.Int64 != x.ID {
-			t.Error("foreign key was wrong value", a.RevisionID.Int64)
-		}
-
-		zero := reflect.Zero(reflect.TypeOf(a.RevisionID.Int64))
-		reflect.Indirect(reflect.ValueOf(&a.RevisionID.Int64)).Set(zero)
-
-		if err = a.Reload(tx); err != nil {
-			t.Fatal("failed to reload", err)
-		}
-
-		if a.RevisionID.Int64 != x.ID {
-			t.Error("foreign key was wrong value", a.RevisionID.Int64, x.ID)
-		}
-	}
-}
-
-func testDiscordMessageEmbedToOneRemoveOpDiscordMessageRevisionUsingRevision(t *testing.T) {
-	var err error
-
-	tx := MustTx(boil.Begin())
-	defer tx.Rollback()
-
-	var a DiscordMessageEmbed
-	var b DiscordMessageRevision
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, discordMessageEmbedDBTypes, false, strmangle.SetComplement(discordMessageEmbedPrimaryKeyColumns, discordMessageEmbedColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	if err = randomize.Struct(seed, &b, discordMessageRevisionDBTypes, false, strmangle.SetComplement(discordMessageRevisionPrimaryKeyColumns, discordMessageRevisionColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-
-	if err = a.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	if err = a.SetRevision(tx, true, &b); err != nil {
-		t.Fatal(err)
-	}
-
-	if err = a.RemoveRevision(tx, &b); err != nil {
-		t.Error("failed to remove relationship")
-	}
-
-	count, err := a.Revision(tx).Count()
-	if err != nil {
-		t.Error(err)
-	}
-	if count != 0 {
-		t.Error("want no relationships remaining")
-	}
-
-	if a.R.Revision != nil {
-		t.Error("R struct entry should be nil")
-	}
-
-	if a.RevisionID.Valid {
-		t.Error("foreign key value should be nil")
-	}
-
-	if len(b.R.RevisionDiscordMessageEmbeds) != 0 {
-		t.Error("failed to remove a from b's relationships")
-	}
-}
-
 func testDiscordMessageEmbedsReload(t *testing.T) {
 	t.Parallel()
 
@@ -709,7 +497,7 @@ func testDiscordMessageEmbedsSelect(t *testing.T) {
 }
 
 var (
-	discordMessageEmbedDBTypes = map[string]string{`AuthorIconURL`: `text`, `AuthorName`: `text`, `AuthorProxyIconURL`: `text`, `AuthorURL`: `text`, `Color`: `integer`, `Description`: `text`, `FieldInlines`: `ARRAYboolean`, `FieldNames`: `ARRAYtext`, `FieldValues`: `ARRAYtext`, `FooterIconURL`: `text`, `FooterProxyIconURL`: `text`, `FooterText`: `text`, `ID`: `bigint`, `ImageHeight`: `integer`, `ImageProxyURL`: `text`, `ImageURL`: `text`, `ImageWidth`: `integer`, `MessageID`: `bigint`, `ProviderName`: `text`, `ProviderURL`: `text`, `RevisionID`: `bigint`, `ThumbnailHeight`: `integer`, `ThumbnailProxyURL`: `text`, `ThumbnailURL`: `text`, `ThumbnailWidth`: `integer`, `Timestamp`: `text`, `Title`: `text`, `Type`: `text`, `URL`: `text`, `VideoHeight`: `integer`, `VideoProxyURL`: `text`, `VideoURL`: `text`, `VideoWidth`: `integer`}
+	discordMessageEmbedDBTypes = map[string]string{`AuthorIconURL`: `text`, `AuthorName`: `text`, `AuthorProxyIconURL`: `text`, `AuthorURL`: `text`, `Color`: `integer`, `Description`: `text`, `FieldInlines`: `ARRAYboolean`, `FieldNames`: `ARRAYtext`, `FieldValues`: `ARRAYtext`, `FooterIconURL`: `text`, `FooterProxyIconURL`: `text`, `FooterText`: `text`, `ID`: `bigint`, `ImageHeight`: `integer`, `ImageProxyURL`: `text`, `ImageURL`: `text`, `ImageWidth`: `integer`, `MessageID`: `bigint`, `ProviderName`: `text`, `ProviderURL`: `text`, `RevisionNum`: `integer`, `ThumbnailHeight`: `integer`, `ThumbnailProxyURL`: `text`, `ThumbnailURL`: `text`, `ThumbnailWidth`: `integer`, `Timestamp`: `text`, `Title`: `text`, `Type`: `text`, `URL`: `text`, `VideoHeight`: `integer`, `VideoProxyURL`: `text`, `VideoURL`: `text`, `VideoWidth`: `integer`}
 	_                          = bytes.MinRead
 )
 

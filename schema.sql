@@ -160,11 +160,10 @@ CREATE TABLE IF NOT EXISTS discord_voice_states (
 CREATE INDEX ON discord_voice_states(guild_id);
 CREATE INDEX ON discord_voice_states(channel_id);
 
-DROP TABLE IF EXISTS discord_messages;
+DROP TABLE IF EXISTS discord_messages CASCADE;
 CREATE TABLE IF NOT EXISTS discord_messages (
 	id bigint PRIMARY KEY,
 	channel_id bigint NOT NULL,
-	guild_id bigint NOT NULL,
 
 	timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
 	edited_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -181,21 +180,22 @@ CREATE TABLE IF NOT EXISTS discord_messages (
 	author_bot bool NOT NULL,
 
 	content text NOT NULL,
-	embeds bigint[]
+	embeds bigint[] NOT NULL
 );
 
 CREATE INDEX ON discord_messages(channel_id);
 CREATE INDEX ON discord_messages(guild_id);
 
-DROP TABLE IF EXISTS discord_message_revisions;
+DROP TABLE IF EXISTS discord_message_revisions CASCADE;
 CREATE TABLE IF NOT EXISTS discord_message_revisions (
-	id bigserial PRIMARY KEY,
+	revision_num int,
 	message_id bigint references discord_messages(id) NOT NULL,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 
-	number int NOT NULL,
 	content text NOT NULL,
-	embeds bigint[]
+	embeds bigint[] NOT NULL,
+
+	PRIMARY KEY(message_id, revision_num)
 );
 
 CREATE INDEX ON discord_message_revisions(message_id);
@@ -203,8 +203,8 @@ CREATE INDEX ON discord_message_revisions(message_id);
 DROP TABLE IF EXISTS discord_message_embeds;
 CREATE TABLE IF NOT EXISTS discord_message_embeds (
 	id bigserial PRIMARY KEY,
-	message_id bigint references discord_messages(id),
-	revision_id bigint references discord_message_revisions(id),
+	message_id bigint references discord_messages(id) NOT NULL,
+	revision_num int NOT NULL,
 
 	url text NOT NULL,
 	type text NOT NULL,
@@ -213,9 +213,9 @@ CREATE TABLE IF NOT EXISTS discord_message_embeds (
 	timestamp text NOT NULL,
 	color int NOT NULL,
 
-	field_names text[],
-	field_values text[],
-	field_inlines bool[],
+	field_names text[] NOT NULL,
+	field_values text[] NOT NULL,
+	field_inlines bool[] NOT NULL,
 
 	footer_text text,
 	footer_icon_url text,

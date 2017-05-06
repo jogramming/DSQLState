@@ -5,11 +5,12 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/bwmarrin/discordgo"
 	"github.com/jonas747/dsqlstate"
+	"os"
 	"time"
 )
 
 var (
-	state *dsqlstate.State
+	server *dsqlstate.Server
 )
 
 func main() {
@@ -27,18 +28,14 @@ func main() {
 	}
 	db.SetMaxOpenConns(25)
 
-	state = dsqlstate.New(db, true)
-	err = state.Init()
-	if err != nil {
-		logrus.WithError(err).Fatal("Failed init")
-	}
+	server = dsqlstate.NewServer(db)
+	server.LoadAllMembers = true
+	server.RunWorkers(0)
 
-	session.AddHandler(state.HandleEvent)
-
+	session.AddHandler(server.HandleEvent)
 	session.Open()
 
 	ticker := time.NewTicker(time.Second)
-
 	for {
 		select {
 		case <-ticker.C:
@@ -48,6 +45,6 @@ func main() {
 }
 
 func printGuildCounts() {
-	n, err := state.JoinedGuildsCount()
-	logrus.Info("Guilds:", n, err)
+	// n, err := state.JoinedGuildsCount()
+	// logrus.Info("Guilds:", n, err)
 }

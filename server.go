@@ -3,6 +3,7 @@ package dsqlstate
 import (
 	"database/sql"
 	"fmt"
+	"github.com/vattle/sqlboiler/queries/qm"
 	"sync"
 	// "encoding/json"
 	"github.com/Sirupsen/logrus"
@@ -26,11 +27,11 @@ func panicErr(err error) {
 
 type memCache struct {
 	SelfUser  *discordgo.User
-	SesisonID string
+	SessionID string
 	sync.Mutex
 }
 
-// The server is the part that keeps the cache up to date
+// Server keeps the database up to date
 type Server struct {
 	self             *discordgo.User
 	db               *sql.DB
@@ -54,6 +55,10 @@ func NewServer(db *sql.DB) *Server {
 
 // RunWorkers starts the shard workers, this is required if you want all members loaded into the db
 func (s *Server) RunWorkers(numShards int) {
+	if numShards < 1 {
+		numShards = 1
+	}
+
 	s.shardWorkers = make([]*shardWorker, numShards)
 	for i := 0; i < numShards; i++ {
 		s.shardWorkers[i] = &shardWorker{
@@ -154,8 +159,7 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) {
 	case *discordgo.GuildMemberUpdate:
 		srv.updateMember(t.Member)
 	case *discordgo.GuildMemberRemove:
-		srv.db.Exec("UPDATE discord_members SET left_at = $1 WHERE user_id = $2", time.Now(), t.User.ID)
-
+		models.DiscordMembers(srv.db, qm.Where("user_id = ?", t.User.ID), qm.Where("guild_id = ?", t.GuildID)).UpdateAll(models.M{"left_at": time.Now()})
 	// Roles
 	case *discordgo.GuildRoleCreate:
 		srv.updateRole(t.GuildID, t.Role)
@@ -179,8 +183,15 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) {
 		}
 	case *discordgo.ChannelDelete:
 		if t.Channel.GuildID != "" {
-			srv.db.Exec("UPDATE discord_guild_channels SET deleted_at = $1 WHERE id = $2", time.Now(), t.Channel.ID)
+			models.DiscordGuildChannels(srv.db, qm.Where("id = ?", t.Channel.ID)).UpdateAll(models.M{"deleted_at": time.Now()})
 		}
+	// Messages
+	case *discordgo.MessageCreate:
+		srv.messageCreate(t.Message)
+	case *discordgo.MessageUpdate:
+		srv.messageUpdate(nil, nil, t.Message, true)
+	case *discordgo.MessageDelete:
+		srv.messageDelete(t.Message)
 
 	// Other
 	case *discordgo.VoiceStateUpdate:
@@ -211,6 +222,10 @@ func shardClauseAnd(guildColumn string, numShards, current int) string {
 
 func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 
+	srv.cache.Lock()
+	srv.cache.SelfUser = r.User
+	srv.cache.Unlock()
+
 	// var now = time.Now()
 
 	// Mark all guilds on this shard as deleted
@@ -228,8 +243,8 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 	srv.handleError(err, "Failed marking shard guild channels as deleted")
 
 	// Clear the voice srvates, as we get a new fresh set in the guild creates
-	_, err = srv.db.Exec("DELETE FROM discord_voice_srvates" + sc)
-	srv.handleError(err, "Failed marking shard guild voice_srvates as deleted")
+	_, err = srv.db.Exec("DELETE FROM discord_voice_states" + sc)
+	srv.handleError(err, "Failed marking shard guild voice_states as deleted")
 
 	// Clear members, as people can have left in the meantime, it is now unclear who is srvill on the server
 	_, err = srv.db.Exec("UPDATE discord_members SET left_at = $1 WHERE left_at IS NULL"+sc, time.Now())
@@ -252,7 +267,7 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 					}
 					worker = int((parsedGID >> 22) % int64(s.ShardCount))
 				}
-
+				logrus.Println(worker)
 				srv.shardWorkers[worker].GCCHan <- &GuildCreateEvt{
 					G:       gid,
 					Session: s,
@@ -633,4 +648,214 @@ func (s *Server) updateVoiecState(vc *discordgo.VoiceState) {
 
 	err = model.Upsert(s.db, true, []string{"guild_id", "user_id"}, []string{"surpress", "self_mute", "self_deaf", "mute", "deaf"})
 	s.handleError(err, "Failed upserting voice state")
+}
+
+func (s *Server) messageCreate(m *discordgo.Message) {
+	parsedMID, err := strconv.ParseInt(m.ID, 10, 64)
+	if s.handleError(err, "Failed handling message create, failed parsing message id") {
+		return
+	}
+
+	parsedCID, err := strconv.ParseInt(m.ChannelID, 10, 64)
+	if s.handleError(err, "Failed handling message create, failed parsing channel id") {
+		return
+	}
+
+	parsedTimeStamp, _ := m.Timestamp.Parse()
+
+	transaction, err := s.db.Begin()
+	if s.handleError(err, "Failed handling message create, failed starting transaction") {
+		return
+	}
+
+	parsedAuthorID, _ := strconv.ParseInt(m.Author.ID, 10, 64)
+	parsedAuthorDiscrim, _ := strconv.ParseInt(m.Author.Discriminator, 10, 32)
+
+	model := &models.DiscordMessage{
+		ID:        parsedMID,
+		ChannelID: parsedCID,
+		Timestamp: parsedTimeStamp,
+
+		AuthorID:       parsedAuthorID,
+		AuthorUsername: m.Author.Username,
+		AuthorDiscrim:  int(parsedAuthorDiscrim),
+		AuthorAvatar:   m.Author.Avatar,
+		AuthorBot:      m.Author.Bot,
+
+		Mentions:        []int64{},
+		MentionRoles:    []int64{},
+		MentionEveryone: m.MentionEveryone,
+
+		Content: m.Content,
+		Embeds:  []int64{},
+	}
+
+	err = model.Insert(transaction)
+	if s.handleError(err, "Failed inserting new message") {
+		transaction.Rollback()
+		return
+	}
+
+	s.messageUpdate(transaction, model, m, false)
+}
+
+// Somewhat complicated update procedure:
+// 1. Retry in 2 seconds if we got the update before the create
+// 2. Lock the message for update
+// 3. Create the revision model
+// 4. create the embeds models
+// 5. update the revision model
+// 6. update the message model
+// 7. Commit if all went well
+func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.DiscordMessage, m *discordgo.Message, retry bool) {
+	parsedMID, _ := strconv.ParseInt(m.ID, 10, 64)
+
+	if transaction == nil {
+		var err error
+		transaction, err = s.db.Begin()
+		if s.handleError(err, "Failed updating message, failed starting transatcion") {
+			return
+		}
+
+		messageModel, err = models.DiscordMessages(transaction, qm.Where("id = ?", parsedMID), qm.For("UPDATE")).One()
+		if err == sql.ErrNoRows && retry {
+			// Try again in a couple seconds in case of a fast embed update, or something like that
+			transaction.Rollback()
+			time.Sleep(time.Second * 2)
+			s.messageUpdate(nil, nil, m, false)
+			return
+		}
+
+		if s.handleError(err, fmt.Sprintf("Failed updating message, failed finding message: id: %d (%s)", parsedMID, m.ID)) {
+			return
+		}
+	}
+
+	num, err := models.DiscordMessageRevisions(transaction, qm.Where("message_id = ?", parsedMID)).Count()
+	if s.handleError(err, "Failed updating message, counting revisions") {
+		transaction.Rollback()
+		return
+	}
+
+	revisionModel := &models.DiscordMessageRevision{
+		MessageID:   parsedMID,
+		RevisionNum: int(num),
+		Content:     m.Content,
+		Embeds:      []int64{},
+	}
+	err = revisionModel.Insert(transaction)
+	if s.handleError(err, "Failed updating message, inserting new revision") {
+		transaction.Rollback()
+		return
+	}
+
+	embedIds := make([]int64, 0)
+
+	messageModel.Content = m.Content
+	for _, v := range m.Embeds {
+		embedmodel := createEmbedModel(v)
+		embedmodel.MessageID = parsedMID
+		embedmodel.RevisionNum = int(num)
+		err = embedmodel.Insert(transaction)
+		if s.handleError(err, "Failed updating message, inserting embed") {
+			transaction.Rollback()
+			return
+		}
+
+		embedIds = append(embedIds, embedmodel.ID)
+	}
+
+	revisionModel.Embeds = embedIds
+	if s.handleError(revisionModel.Update(transaction, "embeds"), "Failed updating message, updating revision") {
+		transaction.Rollback()
+		return
+	}
+
+	messageModel.Embeds = embedIds
+	parsedEdited, _ := m.EditedTimestamp.Parse()
+	messageModel.EditedTimestamp = parsedEdited
+
+	err = messageModel.Update(transaction, "content", "embeds", "edited_timestamp")
+	if s.handleError(err, "Failed updating message, updating message model") {
+		transaction.Rollback()
+		return
+	}
+
+	if s.handleError(transaction.Commit(), "Failed updating message, comitting transation") {
+		return
+	}
+}
+
+func createEmbedModel(embed *discordgo.MessageEmbed) *models.DiscordMessageEmbed {
+	// And here the long ass journy of creating an embed starts
+	model := &models.DiscordMessageEmbed{
+		URL:         embed.URL,
+		Type:        embed.Type,
+		Title:       embed.Title,
+		Description: embed.Description,
+		Timestamp:   embed.Timestamp,
+		Color:       embed.Color,
+	}
+
+	if len(embed.Fields) > 0 {
+		model.FieldNames = make([]string, len(embed.Fields))
+		model.FieldValues = make([]string, len(embed.Fields))
+		model.FieldInlines = make([]bool, len(embed.Fields))
+		for i := 0; i < len(embed.Fields); i++ {
+			f := embed.Fields[i]
+			model.FieldNames[i] = f.Name
+			model.FieldValues[i] = f.Value
+			model.FieldInlines[i] = f.Inline
+		}
+	} else {
+		model.FieldNames = []string{}
+		model.FieldValues = []string{}
+		model.FieldInlines = []bool{}
+	}
+
+	if embed.Footer != nil {
+		model.FooterText = null.StringFrom(embed.Footer.Text)
+		model.FooterIconURL = null.StringFrom(embed.Footer.IconURL)
+		model.FooterProxyIconURL = null.StringFrom(embed.Footer.ProxyIconURL)
+	}
+
+	if embed.Thumbnail != nil {
+		model.ThumbnailURL = null.StringFrom(embed.Thumbnail.URL)
+		model.ThumbnailProxyURL = null.StringFrom(embed.Thumbnail.ProxyURL)
+		model.ThumbnailWidth = null.IntFrom(embed.Thumbnail.Width)
+		model.ThumbnailHeight = null.IntFrom(embed.Thumbnail.Height)
+	}
+
+	if embed.Image != nil {
+		model.ImageURL = null.StringFrom(embed.Image.URL)
+		model.ImageProxyURL = null.StringFrom(embed.Image.ProxyURL)
+		model.ImageHeight = null.IntFrom(embed.Image.Height)
+		model.ImageWidth = null.IntFrom(embed.Image.Width)
+	}
+
+	if embed.Video != nil {
+		model.VideoURL = null.StringFrom(embed.Video.URL)
+		model.VideoProxyURL = null.StringFrom(embed.Video.ProxyURL)
+		model.VideoWidth = null.IntFrom(embed.Video.Width)
+		model.VideoHeight = null.IntFrom(embed.Video.Height)
+	}
+
+	if embed.Provider != nil {
+		model.ProviderName = null.StringFrom(embed.Provider.Name)
+		model.ProviderURL = null.StringFrom(embed.Provider.URL)
+	}
+
+	if embed.Author != nil {
+		model.AuthorURL = null.StringFrom(embed.Author.URL)
+		model.AuthorName = null.StringFrom(embed.Author.Name)
+		model.AuthorIconURL = null.StringFrom(embed.Author.IconURL)
+		model.AuthorProxyIconURL = null.StringFrom(embed.Author.ProxyIconURL)
+	}
+
+	return model
+}
+
+func (s *Server) messageDelete(m *discordgo.Message) {
+	err := models.DiscordMessages(s.db, qm.Where("id = ?", m.ID)).UpdateAll(models.M{"deleted_at": time.Now()})
+	s.handleError(err, "Failed marking message as deleted")
 }
