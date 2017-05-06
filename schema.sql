@@ -169,8 +169,9 @@ CREATE TABLE IF NOT EXISTS discord_messages (
 	edited_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
 	deleted_at TIMESTAMP WITH TIME ZONE,
 
-	mention_roles bigint[],
-	mentions bigint[],
+	-- sqlboiler has a hard time with nullable arrays
+	mention_roles bigint[] NOT NULL,
+	mentions bigint[] NOT NULL,
 	mention_everyone bool NOT NULL,
 	
 	author_id bigint NOT NULL,
@@ -184,7 +185,6 @@ CREATE TABLE IF NOT EXISTS discord_messages (
 );
 
 CREATE INDEX ON discord_messages(channel_id);
-CREATE INDEX ON discord_messages(guild_id);
 
 DROP TABLE IF EXISTS discord_message_revisions CASCADE;
 CREATE TABLE IF NOT EXISTS discord_message_revisions (
@@ -194,6 +194,9 @@ CREATE TABLE IF NOT EXISTS discord_message_revisions (
 
 	content text NOT NULL,
 	embeds bigint[] NOT NULL,
+
+	mentions bigint[] NOT NULL,
+	mention_roles bigint[] NOT NULL,
 
 	PRIMARY KEY(message_id, revision_num)
 );

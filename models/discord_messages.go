@@ -25,8 +25,8 @@ type DiscordMessage struct {
 	Timestamp       time.Time        `boil:"timestamp" json:"timestamp" toml:"timestamp" yaml:"timestamp"`
 	EditedTimestamp time.Time        `boil:"edited_timestamp" json:"edited_timestamp" toml:"edited_timestamp" yaml:"edited_timestamp"`
 	DeletedAt       null.Time        `boil:"deleted_at" json:"deleted_at,omitempty" toml:"deleted_at" yaml:"deleted_at,omitempty"`
-	MentionRoles    types.Int64Array `boil:"mention_roles" json:"mention_roles,omitempty" toml:"mention_roles" yaml:"mention_roles,omitempty"`
-	Mentions        types.Int64Array `boil:"mentions" json:"mentions,omitempty" toml:"mentions" yaml:"mentions,omitempty"`
+	MentionRoles    types.Int64Array `boil:"mention_roles" json:"mention_roles" toml:"mention_roles" yaml:"mention_roles"`
+	Mentions        types.Int64Array `boil:"mentions" json:"mentions" toml:"mentions" yaml:"mentions"`
 	MentionEveryone bool             `boil:"mention_everyone" json:"mention_everyone" toml:"mention_everyone" yaml:"mention_everyone"`
 	AuthorID        int64            `boil:"author_id" json:"author_id" toml:"author_id" yaml:"author_id"`
 	AuthorUsername  string           `boil:"author_username" json:"author_username" toml:"author_username" yaml:"author_username"`

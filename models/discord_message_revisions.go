@@ -19,11 +19,13 @@ import (
 
 // DiscordMessageRevision is an object representing the database table.
 type DiscordMessageRevision struct {
-	RevisionNum int              `boil:"revision_num" json:"revision_num" toml:"revision_num" yaml:"revision_num"`
-	MessageID   int64            `boil:"message_id" json:"message_id" toml:"message_id" yaml:"message_id"`
-	CreatedAt   time.Time        `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
-	Content     string           `boil:"content" json:"content" toml:"content" yaml:"content"`
-	Embeds      types.Int64Array `boil:"embeds" json:"embeds" toml:"embeds" yaml:"embeds"`
+	RevisionNum  int              `boil:"revision_num" json:"revision_num" toml:"revision_num" yaml:"revision_num"`
+	MessageID    int64            `boil:"message_id" json:"message_id" toml:"message_id" yaml:"message_id"`
+	CreatedAt    time.Time        `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
+	Content      string           `boil:"content" json:"content" toml:"content" yaml:"content"`
+	Embeds       types.Int64Array `boil:"embeds" json:"embeds" toml:"embeds" yaml:"embeds"`
+	Mentions     types.Int64Array `boil:"mentions" json:"mentions" toml:"mentions" yaml:"mentions"`
+	MentionRoles types.Int64Array `boil:"mention_roles" json:"mention_roles" toml:"mention_roles" yaml:"mention_roles"`
 
 	R *discordMessageRevisionR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L discordMessageRevisionL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -38,8 +40,8 @@ type discordMessageRevisionR struct {
 type discordMessageRevisionL struct{}
 
 var (
-	discordMessageRevisionColumns               = []string{"revision_num", "message_id", "created_at", "content", "embeds"}
-	discordMessageRevisionColumnsWithoutDefault = []string{"revision_num", "message_id", "created_at", "content", "embeds"}
+	discordMessageRevisionColumns               = []string{"revision_num", "message_id", "created_at", "content", "embeds", "mentions", "mention_roles"}
+	discordMessageRevisionColumnsWithoutDefault = []string{"revision_num", "message_id", "created_at", "content", "embeds", "mentions", "mention_roles"}
 	discordMessageRevisionColumnsWithDefault    = []string{}
 	discordMessageRevisionPrimaryKeyColumns     = []string{"revision_num", "message_id"}
 )

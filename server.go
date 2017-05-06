@@ -41,15 +41,31 @@ type Server struct {
 	LoadAllMembers   bool
 	UpdateGameStatus bool
 
+	// Queue all events until ready
+	readyShards []bool
+	readyGuilds map[int64]bool
+	readyLock   sync.Mutex
+
 	cache        memCache
 	shardWorkers []*shardWorker
 }
 
+type QueuedEvent struct {
+	Evt     interface{}
+	Session *discordgo.Session
+}
+
 // New returns a default state using the database
-func NewServer(db *sql.DB) *Server {
+func NewServer(db *sql.DB, numShards int) *Server {
+	if numShards < 1 {
+		numShards = 1
+	}
+
 	return &Server{
 		db:             db,
 		LoadAllMembers: true,
+		readyShards:    make([]bool, numShards),
+		readyGuilds:    make(map[int64]bool),
 	}
 }
 
@@ -81,7 +97,7 @@ func (s *Server) StopWorkers() {
 
 type GuildCreateEvt struct {
 	Session *discordgo.Session
-	G       string
+	G       int64
 }
 
 type shardWorker struct {
@@ -112,7 +128,7 @@ func (s *shardWorker) queueHandler() {
 
 			logrus.Info("Requesting members from ", g.G)
 
-			err := g.Session.RequestGuildMembers(g.G, "", 0)
+			err := g.Session.RequestGuildMembers(strconv.FormatInt(g.G, 10), "", 0)
 
 			if s.server.handleError(err, "Worker failed requesting guild members, retrying...") {
 				guildsToBeProcessed = append(guildsToBeProcessed, g)
@@ -135,29 +151,95 @@ func (s *Server) handleError(err error, message string) bool {
 	return true
 }
 
+func (s *Server) allGuildsReady() bool {
+	s.readyLock.Lock()
+	defer s.readyLock.Unlock()
+	for _, v := range s.readyShards {
+		if !v {
+			return false
+		}
+	}
+
+	// logrus.Println(len(s.readyGuilds))
+	if len(s.readyGuilds) > 0 {
+		return false
+	}
+
+	return true
+}
+
+func (s *Server) NumNotReady() (bool, int) {
+	s.readyLock.Lock()
+	defer s.readyLock.Unlock()
+	b := true
+	for _, v := range s.readyShards {
+		if !v {
+			b = false
+			break
+		}
+	}
+
+	n := len(s.readyGuilds)
+	return b, n
+}
+
+func (s *Server) shardsReady() bool {
+	s.readyLock.Lock()
+	defer s.readyLock.Unlock()
+	for _, v := range s.readyShards {
+		if !v {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) {
+
+	switch t := evt.(type) {
+	case *discordgo.Ready:
+		srv.ready(s, t)
+		return
+	}
+
+	for !srv.shardsReady() {
+		time.Sleep(time.Second)
+	}
+
+	switch t := evt.(type) {
+	// Guilds
+	case *discordgo.GuildCreate:
+		srv.guildCreate(s, t.Guild)
+		return
+	case *discordgo.GuildDelete:
+		srv.guildRemove(t.Guild)
+		return
+	}
+
+	for !srv.allGuildsReady() {
+		// Wait until all the guilds have loaded their initial set receivied in ready and guild creates
+		// In the future, check each guild individually
+		// And store a queue on disk perhaps, for when discord has downtimes and makes guilds unavailable for extended perios
+		// Then again we wouldnt receive many events for those guilds so we should be able to keep the short queue in memory
+		// HMMMM
+		time.Sleep(time.Second)
+	}
+
 	if srv.Debug {
 		t := reflect.Indirect(reflect.ValueOf(evt)).Type()
 		logrus.Debug("Inc event ", t.Name())
 	}
 
 	switch t := evt.(type) {
-	case *discordgo.Ready:
-		srv.ready(s, t)
-
-	// Guilds
-	case *discordgo.GuildCreate:
-		srv.guildCreate(t.Guild)
-	case *discordgo.GuildDelete:
-		srv.guildRemove(t.Guild)
 	case *discordgo.GuildUpdate:
-		srv.guildUpdate(t.Guild)
+		srv.guildUpdate(s, t.Guild)
 
 	// Members
 	case *discordgo.GuildMemberAdd:
-		srv.updateMember(t.Member)
+		srv.updateMember(s, t.Member)
 	case *discordgo.GuildMemberUpdate:
-		srv.updateMember(t.Member)
+		srv.updateMember(s, t.Member)
 	case *discordgo.GuildMemberRemove:
 		models.DiscordMembers(srv.db, qm.Where("user_id = ?", t.User.ID), qm.Where("guild_id = ?", t.GuildID)).UpdateAll(models.M{"left_at": time.Now()})
 	// Roles
@@ -250,59 +332,86 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 	_, err = srv.db.Exec("UPDATE discord_members SET left_at = $1 WHERE left_at IS NULL"+sc, time.Now())
 	srv.handleError(err, "Failed marking shard guild members as left")
 
+	var wg sync.WaitGroup
 	for _, v := range r.Guilds {
+		parsedGID, err := strconv.ParseInt(v.ID, 10, 64)
+		if srv.handleError(err, "Failed parsing guild id") {
+			return
+		}
+
+		srv.readyLock.Lock()
+		logrus.Println(parsedGID)
+		if v.Unavailable {
+			srv.readyGuilds[parsedGID] = false
+			logrus.Println(parsedGID, len(srv.readyGuilds))
+		}
+		srv.readyLock.Unlock()
+
 		if v.Unavailable {
 			srv.db.Exec("UPDATE discord_guilds SET left_at = NULL WHERE id = $1", v.ID)
 		} else {
-			srv.guildCreate(v)
-		}
-
-		if srv.LoadAllMembers {
-			go func(gid string) {
-				worker := 0
-				if s.ShardCount > 0 {
-					parsedGID, err := strconv.ParseInt(gid, 10, 64)
-					if srv.handleError(err, "Failed parsing guild id") {
-						return
-					}
-					worker = int((parsedGID >> 22) % int64(s.ShardCount))
-				}
-				logrus.Println(worker)
-				srv.shardWorkers[worker].GCCHan <- &GuildCreateEvt{
-					G:       gid,
-					Session: s,
-				}
-			}(v.ID)
+			logrus.Info(parsedGID, "not unavail")
+			wg.Add(1)
+			go func(g *discordgo.Guild) {
+				srv.guildCreate(s, g)
+				wg.Done()
+			}(v)
 		}
 	}
+
+	wg.Wait()
+
+	srv.readyLock.Lock()
+	srv.readyShards[s.ShardID] = true
+	srv.readyLock.Unlock()
 }
 
 func (srv *Server) guildMembersChunk(chunk *discordgo.GuildMembersChunk) {
 	started := time.Now()
 	for _, v := range chunk.Members {
 		v.GuildID = chunk.GuildID
-		srv.updateMember(v)
+		srv.updateMember(nil, v)
 	}
 	logrus.Debug("Updated ", len(chunk.Members), " in ", time.Since(started))
 }
 
-func (srv *Server) guildCreate(g *discordgo.Guild) {
-	srv.guildUpdate(g)
+func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
+	parsedGID, _ := strconv.ParseInt(g.ID, 10, 64)
+
+	if srv.LoadAllMembers && g.Large {
+		go func(gid int64) {
+			worker := 0
+			if session.ShardCount > 0 {
+				worker = int((gid >> 22) % int64(session.ShardCount))
+			}
+			srv.shardWorkers[worker].GCCHan <- &GuildCreateEvt{
+				G:       gid,
+				Session: session,
+			}
+		}(parsedGID)
+	}
+
+	logrus.Debug("GC! ", g.Name)
+	srv.guildUpdate(session, g)
+	srv.readyLock.Lock()
+	delete(srv.readyGuilds, parsedGID)
+	srv.readyLock.Unlock()
 }
 
 func (srv *Server) guildRemove(g *discordgo.Guild) {
+	parsedID, _ := strconv.ParseInt(g.ID, 10, 64)
+	srv.readyLock.Lock()
+	delete(srv.readyGuilds, parsedID)
+	srv.readyLock.Unlock()
 	srv.db.Exec("UPDATE discord_guilds SET left_at = $1 WHERE id = $2", time.Now(), g.ID)
 }
 
-func (srv *Server) guildUpdate(g *discordgo.Guild) {
+func (srv *Server) guildUpdate(session *discordgo.Session, g *discordgo.Guild) {
 	parsedId, err := strconv.ParseInt(g.ID, 10, 64)
-	ownerID, err2 := strconv.ParseInt(g.OwnerID, 10, 64)
-
 	panicErr(err)
 
-	if err2 != nil {
-		panic(err2)
-	}
+	// Servers cna have no owner in edge cases...
+	ownerID, _ := strconv.ParseInt(g.OwnerID, 10, 64)
 
 	var parsedAFK int64
 	var embedChannel int64
@@ -357,7 +466,7 @@ func (srv *Server) guildUpdate(g *discordgo.Guild) {
 
 	// Update all the members and users
 	for _, v := range g.Members {
-		srv.updateMember(v)
+		srv.updateMember(session, v)
 	}
 }
 
@@ -410,12 +519,11 @@ func (s *Server) presenceUpdate(p *discordgo.PresenceUpdate) {
 
 		columns = append(columns, "game_name", "game_type", "game_url")
 	}
-
 	err = model.Upsert(s.db, true, []string{"id"}, columns)
 	s.handleError(err, "Failed upserting presence")
 }
 
-func (s *Server) updateMember(member *discordgo.Member) {
+func (s *Server) updateMember(session *discordgo.Session, member *discordgo.Member) {
 	s.updateUser(member.User)
 
 	parsedMID, err := strconv.ParseInt(member.User.ID, 10, 64)
@@ -423,9 +531,7 @@ func (s *Server) updateMember(member *discordgo.Member) {
 	parsedGID, err := strconv.ParseInt(member.GuildID, 10, 64)
 	panicErr(err)
 
-	joinedParsed, err := discordgo.Timestamp(member.JoinedAt).Parse()
-	s.handleError(err, "Failed parsing member joined_at timestamp")
-
+	joinedParsed, _ := discordgo.Timestamp(member.JoinedAt).Parse()
 	model := &models.DiscordMember{
 		UserID:  parsedMID,
 		GuildID: parsedGID,
@@ -466,6 +572,7 @@ func (s *Server) updateMember(member *discordgo.Member) {
 	}
 
 	for _, v := range member.Roles {
+		transaction.Exec("SAVEPOINT sp")
 		parsedRoleID, err := strconv.ParseInt(v, 10, 64)
 		if s.handleError(err, "Failed parsing role id") {
 			continue
@@ -475,8 +582,14 @@ func (s *Server) updateMember(member *discordgo.Member) {
 			GuildID: parsedGID,
 			RoleID:  parsedRoleID,
 		}
+
 		err = model.Upsert(transaction, false, []string{"user_id", "guild_id"}, nil)
-		s.handleError(err, "Failed upserting member role update")
+		if err != nil {
+			if err.Error() != `pq: insert or update on table "discord_member_roles" violates foreign key constraint "discord_member_roles_role_id_fkey"` {
+				s.handleError(err, fmt.Sprint("Failed upserting member role update ", parsedRoleID, " : ", parsedGID))
+			}
+			transaction.Exec("ROLLBACK TO SAVEPOINT sp")
+		}
 	}
 
 	err = transaction.Commit()
@@ -727,6 +840,7 @@ func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.Discord
 		}
 
 		if s.handleError(err, fmt.Sprintf("Failed updating message, failed finding message: id: %d (%s)", parsedMID, m.ID)) {
+			transaction.Rollback()
 			return
 		}
 	}
@@ -738,10 +852,12 @@ func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.Discord
 	}
 
 	revisionModel := &models.DiscordMessageRevision{
-		MessageID:   parsedMID,
-		RevisionNum: int(num),
-		Content:     m.Content,
-		Embeds:      []int64{},
+		MessageID:    parsedMID,
+		RevisionNum:  int(num),
+		Content:      m.Content,
+		Embeds:       []int64{},
+		Mentions:     []int64{},
+		MentionRoles: []int64{},
 	}
 	err = revisionModel.Insert(transaction)
 	if s.handleError(err, "Failed updating message, inserting new revision") {
@@ -797,20 +913,16 @@ func createEmbedModel(embed *discordgo.MessageEmbed) *models.DiscordMessageEmbed
 		Color:       embed.Color,
 	}
 
+	model.FieldNames = make([]string, len(embed.Fields))
+	model.FieldValues = make([]string, len(embed.Fields))
+	model.FieldInlines = make([]bool, len(embed.Fields))
 	if len(embed.Fields) > 0 {
-		model.FieldNames = make([]string, len(embed.Fields))
-		model.FieldValues = make([]string, len(embed.Fields))
-		model.FieldInlines = make([]bool, len(embed.Fields))
 		for i := 0; i < len(embed.Fields); i++ {
 			f := embed.Fields[i]
 			model.FieldNames[i] = f.Name
 			model.FieldValues[i] = f.Value
 			model.FieldInlines[i] = f.Inline
 		}
-	} else {
-		model.FieldNames = []string{}
-		model.FieldValues = []string{}
-		model.FieldInlines = []bool{}
 	}
 
 	if embed.Footer != nil {

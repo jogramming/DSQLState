@@ -493,7 +493,7 @@ func testDiscordMessageRevisionsSelect(t *testing.T) {
 }
 
 var (
-	discordMessageRevisionDBTypes = map[string]string{`Content`: `text`, `CreatedAt`: `timestamp with time zone`, `Embeds`: `ARRAYbigint`, `MessageID`: `bigint`, `RevisionNum`: `integer`}
+	discordMessageRevisionDBTypes = map[string]string{`Content`: `text`, `CreatedAt`: `timestamp with time zone`, `Embeds`: `ARRAYbigint`, `MentionRoles`: `ARRAYbigint`, `Mentions`: `ARRAYbigint`, `MessageID`: `bigint`, `RevisionNum`: `integer`}
 	_                             = bytes.MinRead
 )
 
