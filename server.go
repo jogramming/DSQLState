@@ -120,7 +120,7 @@ func (s *shardWorker) queueHandler() {
 		case g := <-s.GCCHan:
 			guildsToBeProcessed = append(guildsToBeProcessed, g)
 		case <-ticker.C:
-			if len(guildsToBeProcessed) < 1 {
+			if len(guildsToBeProcessed) < 1 || !s.server.shardsReady() {
 				continue
 			}
 			g := guildsToBeProcessed[0]
