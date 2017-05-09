@@ -37,8 +37,7 @@ type DiscordGuildRole struct {
 
 // discordGuildRoleR is where relationships are stored.
 type discordGuildRoleR struct {
-	Guild                  *DiscordGuild
-	RoleDiscordMemberRoles DiscordMemberRoleSlice
+	Guild *DiscordGuild
 }
 
 // discordGuildRoleL is where Load methods for each relationship are stored.
@@ -199,30 +198,6 @@ func (o *DiscordGuildRole) Guild(exec boil.Executor, mods ...qm.QueryMod) discor
 	return query
 }
 
-// RoleDiscordMemberRolesG retrieves all the discord_member_role's discord member roles via role_id column.
-func (o *DiscordGuildRole) RoleDiscordMemberRolesG(mods ...qm.QueryMod) discordMemberRoleQuery {
-	return o.RoleDiscordMemberRoles(boil.GetDB(), mods...)
-}
-
-// RoleDiscordMemberRoles retrieves all the discord_member_role's discord member roles with an executor via role_id column.
-func (o *DiscordGuildRole) RoleDiscordMemberRoles(exec boil.Executor, mods ...qm.QueryMod) discordMemberRoleQuery {
-	queryMods := []qm.QueryMod{
-		qm.Select("\"a\".*"),
-	}
-
-	if len(mods) != 0 {
-		queryMods = append(queryMods, mods...)
-	}
-
-	queryMods = append(queryMods,
-		qm.Where("\"a\".\"role_id\"=?", o.ID),
-	)
-
-	query := DiscordMemberRoles(exec, queryMods...)
-	queries.SetFrom(query.Query, "\"discord_member_roles\" as \"a\"")
-	return query
-}
-
 // LoadGuild allows an eager lookup of values, cached into the
 // loaded structs of the objects.
 func (discordGuildRoleL) LoadGuild(e boil.Executor, singular bool, maybeDiscordGuildRole interface{}) error {
@@ -281,71 +256,6 @@ func (discordGuildRoleL) LoadGuild(e boil.Executor, singular bool, maybeDiscordG
 		for _, local := range slice {
 			if local.GuildID == foreign.ID {
 				local.R.Guild = foreign
-				break
-			}
-		}
-	}
-
-	return nil
-}
-
-// LoadRoleDiscordMemberRoles allows an eager lookup of values, cached into the
-// loaded structs of the objects.
-func (discordGuildRoleL) LoadRoleDiscordMemberRoles(e boil.Executor, singular bool, maybeDiscordGuildRole interface{}) error {
-	var slice []*DiscordGuildRole
-	var object *DiscordGuildRole
-
-	count := 1
-	if singular {
-		object = maybeDiscordGuildRole.(*DiscordGuildRole)
-	} else {
-		slice = *maybeDiscordGuildRole.(*DiscordGuildRoleSlice)
-		count = len(slice)
-	}
-
-	args := make([]interface{}, count)
-	if singular {
-		if object.R == nil {
-			object.R = &discordGuildRoleR{}
-		}
-		args[0] = object.ID
-	} else {
-		for i, obj := range slice {
-			if obj.R == nil {
-				obj.R = &discordGuildRoleR{}
-			}
-			args[i] = obj.ID
-		}
-	}
-
-	query := fmt.Sprintf(
-		"select * from \"discord_member_roles\" where \"role_id\" in (%s)",
-		strmangle.Placeholders(dialect.IndexPlaceholders, count, 1, 1),
-	)
-	if boil.DebugMode {
-		fmt.Fprintf(boil.DebugWriter, "%s\n%v\n", query, args)
-	}
-
-	results, err := e.Query(query, args...)
-	if err != nil {
-		return errors.Wrap(err, "failed to eager load discord_member_roles")
-	}
-	defer results.Close()
-
-	var resultSlice []*DiscordMemberRole
-	if err = queries.Bind(results, &resultSlice); err != nil {
-		return errors.Wrap(err, "failed to bind eager loaded slice discord_member_roles")
-	}
-
-	if singular {
-		object.R.RoleDiscordMemberRoles = resultSlice
-		return nil
-	}
-
-	for _, foreign := range resultSlice {
-		for _, local := range slice {
-			if local.ID == foreign.RoleID {
-				local.R.RoleDiscordMemberRoles = append(local.R.RoleDiscordMemberRoles, foreign)
 				break
 			}
 		}
@@ -427,90 +337,6 @@ func (o *DiscordGuildRole) SetGuild(exec boil.Executor, insert bool, related *Di
 		related.R.GuildDiscordGuildRoles = append(related.R.GuildDiscordGuildRoles, o)
 	}
 
-	return nil
-}
-
-// AddRoleDiscordMemberRolesG adds the given related objects to the existing relationships
-// of the discord_guild_role, optionally inserting them as new records.
-// Appends related to o.R.RoleDiscordMemberRoles.
-// Sets related.R.Role appropriately.
-// Uses the global database handle.
-func (o *DiscordGuildRole) AddRoleDiscordMemberRolesG(insert bool, related ...*DiscordMemberRole) error {
-	return o.AddRoleDiscordMemberRoles(boil.GetDB(), insert, related...)
-}
-
-// AddRoleDiscordMemberRolesP adds the given related objects to the existing relationships
-// of the discord_guild_role, optionally inserting them as new records.
-// Appends related to o.R.RoleDiscordMemberRoles.
-// Sets related.R.Role appropriately.
-// Panics on error.
-func (o *DiscordGuildRole) AddRoleDiscordMemberRolesP(exec boil.Executor, insert bool, related ...*DiscordMemberRole) {
-	if err := o.AddRoleDiscordMemberRoles(exec, insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// AddRoleDiscordMemberRolesGP adds the given related objects to the existing relationships
-// of the discord_guild_role, optionally inserting them as new records.
-// Appends related to o.R.RoleDiscordMemberRoles.
-// Sets related.R.Role appropriately.
-// Uses the global database handle and panics on error.
-func (o *DiscordGuildRole) AddRoleDiscordMemberRolesGP(insert bool, related ...*DiscordMemberRole) {
-	if err := o.AddRoleDiscordMemberRoles(boil.GetDB(), insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// AddRoleDiscordMemberRoles adds the given related objects to the existing relationships
-// of the discord_guild_role, optionally inserting them as new records.
-// Appends related to o.R.RoleDiscordMemberRoles.
-// Sets related.R.Role appropriately.
-func (o *DiscordGuildRole) AddRoleDiscordMemberRoles(exec boil.Executor, insert bool, related ...*DiscordMemberRole) error {
-	var err error
-	for _, rel := range related {
-		if insert {
-			rel.RoleID = o.ID
-			if err = rel.Insert(exec); err != nil {
-				return errors.Wrap(err, "failed to insert into foreign table")
-			}
-		} else {
-			updateQuery := fmt.Sprintf(
-				"UPDATE \"discord_member_roles\" SET %s WHERE %s",
-				strmangle.SetParamNames("\"", "\"", 1, []string{"role_id"}),
-				strmangle.WhereClause("\"", "\"", 2, discordMemberRolePrimaryKeyColumns),
-			)
-			values := []interface{}{o.ID, rel.UserID, rel.GuildID}
-
-			if boil.DebugMode {
-				fmt.Fprintln(boil.DebugWriter, updateQuery)
-				fmt.Fprintln(boil.DebugWriter, values)
-			}
-
-			if _, err = exec.Exec(updateQuery, values...); err != nil {
-				return errors.Wrap(err, "failed to update foreign table")
-			}
-
-			rel.RoleID = o.ID
-		}
-	}
-
-	if o.R == nil {
-		o.R = &discordGuildRoleR{
-			RoleDiscordMemberRoles: related,
-		}
-	} else {
-		o.R.RoleDiscordMemberRoles = append(o.R.RoleDiscordMemberRoles, related...)
-	}
-
-	for _, rel := range related {
-		if rel.R == nil {
-			rel.R = &discordMemberRoleR{
-				Role: o,
-			}
-		} else {
-			rel.R.Role = o
-		}
-	}
 	return nil
 }
 

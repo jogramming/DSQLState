@@ -595,7 +595,7 @@ func testDiscordMembersSelect(t *testing.T) {
 }
 
 var (
-	discordMemberDBTypes = map[string]string{`CreatedAt`: `timestamp with time zone`, `Deaf`: `boolean`, `GuildID`: `bigint`, `JoinedAt`: `timestamp with time zone`, `LeftAt`: `timestamp with time zone`, `Mute`: `boolean`, `Nick`: `character varying`, `UserID`: `bigint`}
+	discordMemberDBTypes = map[string]string{`CreatedAt`: `timestamp with time zone`, `Deaf`: `boolean`, `GuildID`: `bigint`, `JoinedAt`: `timestamp with time zone`, `LeftAt`: `timestamp with time zone`, `Mute`: `boolean`, `Nick`: `character varying`, `Roles`: `ARRAYbigint`, `UserID`: `bigint`}
 	_                    = bytes.MinRead
 )
 

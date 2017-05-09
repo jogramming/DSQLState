@@ -321,78 +321,6 @@ func testDiscordMessagesInsertWhitelist(t *testing.T) {
 	}
 }
 
-func testDiscordMessageToManyMessageDiscordMessageRevisions(t *testing.T) {
-	var err error
-	tx := MustTx(boil.Begin())
-	defer tx.Rollback()
-
-	var a DiscordMessage
-	var b, c DiscordMessageRevision
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, discordMessageDBTypes, true, discordMessageColumnsWithDefault...); err != nil {
-		t.Errorf("Unable to randomize DiscordMessage struct: %s", err)
-	}
-
-	if err := a.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	randomize.Struct(seed, &b, discordMessageRevisionDBTypes, false, discordMessageRevisionColumnsWithDefault...)
-	randomize.Struct(seed, &c, discordMessageRevisionDBTypes, false, discordMessageRevisionColumnsWithDefault...)
-
-	b.MessageID = a.ID
-	c.MessageID = a.ID
-	if err = b.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-	if err = c.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	discordMessageRevision, err := a.MessageDiscordMessageRevisions(tx).All()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	bFound, cFound := false, false
-	for _, v := range discordMessageRevision {
-		if v.MessageID == b.MessageID {
-			bFound = true
-		}
-		if v.MessageID == c.MessageID {
-			cFound = true
-		}
-	}
-
-	if !bFound {
-		t.Error("expected to find b")
-	}
-	if !cFound {
-		t.Error("expected to find c")
-	}
-
-	slice := DiscordMessageSlice{&a}
-	if err = a.L.LoadMessageDiscordMessageRevisions(tx, false, &slice); err != nil {
-		t.Fatal(err)
-	}
-	if got := len(a.R.MessageDiscordMessageRevisions); got != 2 {
-		t.Error("number of eager loaded records wrong, got:", got)
-	}
-
-	a.R.MessageDiscordMessageRevisions = nil
-	if err = a.L.LoadMessageDiscordMessageRevisions(tx, true, &a); err != nil {
-		t.Fatal(err)
-	}
-	if got := len(a.R.MessageDiscordMessageRevisions); got != 2 {
-		t.Error("number of eager loaded records wrong, got:", got)
-	}
-
-	if t.Failed() {
-		t.Logf("%#v", discordMessageRevision)
-	}
-}
-
 func testDiscordMessageToManyMessageDiscordMessageEmbeds(t *testing.T) {
 	var err error
 	tx := MustTx(boil.Begin())
@@ -465,29 +393,28 @@ func testDiscordMessageToManyMessageDiscordMessageEmbeds(t *testing.T) {
 	}
 }
 
-func testDiscordMessageToManyAddOpMessageDiscordMessageRevisions(t *testing.T) {
+func testDiscordMessageToManyMessageDiscordMessageRevisions(t *testing.T) {
 	var err error
-
 	tx := MustTx(boil.Begin())
 	defer tx.Rollback()
 
 	var a DiscordMessage
-	var b, c, d, e DiscordMessageRevision
+	var b, c DiscordMessageRevision
 
 	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, discordMessageDBTypes, false, strmangle.SetComplement(discordMessagePrimaryKeyColumns, discordMessageColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	foreigners := []*DiscordMessageRevision{&b, &c, &d, &e}
-	for _, x := range foreigners {
-		if err = randomize.Struct(seed, x, discordMessageRevisionDBTypes, false, strmangle.SetComplement(discordMessageRevisionPrimaryKeyColumns, discordMessageRevisionColumnsWithoutDefault)...); err != nil {
-			t.Fatal(err)
-		}
+	if err = randomize.Struct(seed, &a, discordMessageDBTypes, true, discordMessageColumnsWithDefault...); err != nil {
+		t.Errorf("Unable to randomize DiscordMessage struct: %s", err)
 	}
 
 	if err := a.Insert(tx); err != nil {
 		t.Fatal(err)
 	}
+
+	randomize.Struct(seed, &b, discordMessageRevisionDBTypes, false, discordMessageRevisionColumnsWithDefault...)
+	randomize.Struct(seed, &c, discordMessageRevisionDBTypes, false, discordMessageRevisionColumnsWithDefault...)
+
+	b.MessageID = a.ID
+	c.MessageID = a.ID
 	if err = b.Insert(tx); err != nil {
 		t.Fatal(err)
 	}
@@ -495,50 +422,49 @@ func testDiscordMessageToManyAddOpMessageDiscordMessageRevisions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	foreignersSplitByInsertion := [][]*DiscordMessageRevision{
-		{&b, &c},
-		{&d, &e},
+	discordMessageRevision, err := a.MessageDiscordMessageRevisions(tx).All()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for i, x := range foreignersSplitByInsertion {
-		err = a.AddMessageDiscordMessageRevisions(tx, i != 0, x...)
-		if err != nil {
-			t.Fatal(err)
+	bFound, cFound := false, false
+	for _, v := range discordMessageRevision {
+		if v.MessageID == b.MessageID {
+			bFound = true
 		}
+		if v.MessageID == c.MessageID {
+			cFound = true
+		}
+	}
 
-		first := x[0]
-		second := x[1]
+	if !bFound {
+		t.Error("expected to find b")
+	}
+	if !cFound {
+		t.Error("expected to find c")
+	}
 
-		if a.ID != first.MessageID {
-			t.Error("foreign key was wrong value", a.ID, first.MessageID)
-		}
-		if a.ID != second.MessageID {
-			t.Error("foreign key was wrong value", a.ID, second.MessageID)
-		}
+	slice := DiscordMessageSlice{&a}
+	if err = a.L.LoadMessageDiscordMessageRevisions(tx, false, &slice); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(a.R.MessageDiscordMessageRevisions); got != 2 {
+		t.Error("number of eager loaded records wrong, got:", got)
+	}
 
-		if first.R.Message != &a {
-			t.Error("relationship was not added properly to the foreign slice")
-		}
-		if second.R.Message != &a {
-			t.Error("relationship was not added properly to the foreign slice")
-		}
+	a.R.MessageDiscordMessageRevisions = nil
+	if err = a.L.LoadMessageDiscordMessageRevisions(tx, true, &a); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(a.R.MessageDiscordMessageRevisions); got != 2 {
+		t.Error("number of eager loaded records wrong, got:", got)
+	}
 
-		if a.R.MessageDiscordMessageRevisions[i*2] != first {
-			t.Error("relationship struct slice not set to correct value")
-		}
-		if a.R.MessageDiscordMessageRevisions[i*2+1] != second {
-			t.Error("relationship struct slice not set to correct value")
-		}
-
-		count, err := a.MessageDiscordMessageRevisions(tx).Count()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if want := int64((i + 1) * 2); count != want {
-			t.Error("want", want, "got", count)
-		}
+	if t.Failed() {
+		t.Logf("%#v", discordMessageRevision)
 	}
 }
+
 func testDiscordMessageToManyAddOpMessageDiscordMessageEmbeds(t *testing.T) {
 	var err error
 
@@ -605,6 +531,80 @@ func testDiscordMessageToManyAddOpMessageDiscordMessageEmbeds(t *testing.T) {
 		}
 
 		count, err := a.MessageDiscordMessageEmbeds(tx).Count()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := int64((i + 1) * 2); count != want {
+			t.Error("want", want, "got", count)
+		}
+	}
+}
+func testDiscordMessageToManyAddOpMessageDiscordMessageRevisions(t *testing.T) {
+	var err error
+
+	tx := MustTx(boil.Begin())
+	defer tx.Rollback()
+
+	var a DiscordMessage
+	var b, c, d, e DiscordMessageRevision
+
+	seed := randomize.NewSeed()
+	if err = randomize.Struct(seed, &a, discordMessageDBTypes, false, strmangle.SetComplement(discordMessagePrimaryKeyColumns, discordMessageColumnsWithoutDefault)...); err != nil {
+		t.Fatal(err)
+	}
+	foreigners := []*DiscordMessageRevision{&b, &c, &d, &e}
+	for _, x := range foreigners {
+		if err = randomize.Struct(seed, x, discordMessageRevisionDBTypes, false, strmangle.SetComplement(discordMessageRevisionPrimaryKeyColumns, discordMessageRevisionColumnsWithoutDefault)...); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := a.Insert(tx); err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Insert(tx); err != nil {
+		t.Fatal(err)
+	}
+	if err = c.Insert(tx); err != nil {
+		t.Fatal(err)
+	}
+
+	foreignersSplitByInsertion := [][]*DiscordMessageRevision{
+		{&b, &c},
+		{&d, &e},
+	}
+
+	for i, x := range foreignersSplitByInsertion {
+		err = a.AddMessageDiscordMessageRevisions(tx, i != 0, x...)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		first := x[0]
+		second := x[1]
+
+		if a.ID != first.MessageID {
+			t.Error("foreign key was wrong value", a.ID, first.MessageID)
+		}
+		if a.ID != second.MessageID {
+			t.Error("foreign key was wrong value", a.ID, second.MessageID)
+		}
+
+		if first.R.Message != &a {
+			t.Error("relationship was not added properly to the foreign slice")
+		}
+		if second.R.Message != &a {
+			t.Error("relationship was not added properly to the foreign slice")
+		}
+
+		if a.R.MessageDiscordMessageRevisions[i*2] != first {
+			t.Error("relationship struct slice not set to correct value")
+		}
+		if a.R.MessageDiscordMessageRevisions[i*2+1] != second {
+			t.Error("relationship struct slice not set to correct value")
+		}
+
+		count, err := a.MessageDiscordMessageRevisions(tx).Count()
 		if err != nil {
 			t.Fatal(err)
 		}

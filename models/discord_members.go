@@ -14,19 +14,21 @@ import (
 	"github.com/vattle/sqlboiler/queries"
 	"github.com/vattle/sqlboiler/queries/qm"
 	"github.com/vattle/sqlboiler/strmangle"
+	"github.com/vattle/sqlboiler/types"
 	"gopkg.in/nullbio/null.v6"
 )
 
 // DiscordMember is an object representing the database table.
 type DiscordMember struct {
-	UserID    int64     `boil:"user_id" json:"user_id" toml:"user_id" yaml:"user_id"`
-	GuildID   int64     `boil:"guild_id" json:"guild_id" toml:"guild_id" yaml:"guild_id"`
-	CreatedAt time.Time `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
-	LeftAt    null.Time `boil:"left_at" json:"left_at,omitempty" toml:"left_at" yaml:"left_at,omitempty"`
-	JoinedAt  time.Time `boil:"joined_at" json:"joined_at" toml:"joined_at" yaml:"joined_at"`
-	Nick      string    `boil:"nick" json:"nick" toml:"nick" yaml:"nick"`
-	Deaf      bool      `boil:"deaf" json:"deaf" toml:"deaf" yaml:"deaf"`
-	Mute      bool      `boil:"mute" json:"mute" toml:"mute" yaml:"mute"`
+	UserID    int64            `boil:"user_id" json:"user_id" toml:"user_id" yaml:"user_id"`
+	GuildID   int64            `boil:"guild_id" json:"guild_id" toml:"guild_id" yaml:"guild_id"`
+	CreatedAt time.Time        `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
+	LeftAt    null.Time        `boil:"left_at" json:"left_at,omitempty" toml:"left_at" yaml:"left_at,omitempty"`
+	JoinedAt  time.Time        `boil:"joined_at" json:"joined_at" toml:"joined_at" yaml:"joined_at"`
+	Nick      string           `boil:"nick" json:"nick" toml:"nick" yaml:"nick"`
+	Deaf      bool             `boil:"deaf" json:"deaf" toml:"deaf" yaml:"deaf"`
+	Mute      bool             `boil:"mute" json:"mute" toml:"mute" yaml:"mute"`
+	Roles     types.Int64Array `boil:"roles" json:"roles" toml:"roles" yaml:"roles"`
 
 	R *discordMemberR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L discordMemberL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -42,8 +44,8 @@ type discordMemberR struct {
 type discordMemberL struct{}
 
 var (
-	discordMemberColumns               = []string{"user_id", "guild_id", "created_at", "left_at", "joined_at", "nick", "deaf", "mute"}
-	discordMemberColumnsWithoutDefault = []string{"user_id", "guild_id", "created_at", "left_at", "joined_at", "nick", "deaf", "mute"}
+	discordMemberColumns               = []string{"user_id", "guild_id", "created_at", "left_at", "joined_at", "nick", "deaf", "mute", "roles"}
+	discordMemberColumnsWithoutDefault = []string{"user_id", "guild_id", "created_at", "left_at", "joined_at", "nick", "deaf", "mute", "roles"}
 	discordMemberColumnsWithDefault    = []string{}
 	discordMemberPrimaryKeyColumns     = []string{"user_id", "guild_id"}
 )

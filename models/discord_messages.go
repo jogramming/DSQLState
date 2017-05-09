@@ -42,8 +42,8 @@ type DiscordMessage struct {
 
 // discordMessageR is where relationships are stored.
 type discordMessageR struct {
-	MessageDiscordMessageRevisions DiscordMessageRevisionSlice
 	MessageDiscordMessageEmbeds    DiscordMessageEmbedSlice
+	MessageDiscordMessageRevisions DiscordMessageRevisionSlice
 }
 
 // discordMessageL is where Load methods for each relationship are stored.
@@ -185,30 +185,6 @@ func (q discordMessageQuery) Exists() (bool, error) {
 	return count > 0, nil
 }
 
-// MessageDiscordMessageRevisionsG retrieves all the discord_message_revision's discord message revisions via message_id column.
-func (o *DiscordMessage) MessageDiscordMessageRevisionsG(mods ...qm.QueryMod) discordMessageRevisionQuery {
-	return o.MessageDiscordMessageRevisions(boil.GetDB(), mods...)
-}
-
-// MessageDiscordMessageRevisions retrieves all the discord_message_revision's discord message revisions with an executor via message_id column.
-func (o *DiscordMessage) MessageDiscordMessageRevisions(exec boil.Executor, mods ...qm.QueryMod) discordMessageRevisionQuery {
-	queryMods := []qm.QueryMod{
-		qm.Select("\"a\".*"),
-	}
-
-	if len(mods) != 0 {
-		queryMods = append(queryMods, mods...)
-	}
-
-	queryMods = append(queryMods,
-		qm.Where("\"a\".\"message_id\"=?", o.ID),
-	)
-
-	query := DiscordMessageRevisions(exec, queryMods...)
-	queries.SetFrom(query.Query, "\"discord_message_revisions\" as \"a\"")
-	return query
-}
-
 // MessageDiscordMessageEmbedsG retrieves all the discord_message_embed's discord message embeds via message_id column.
 func (o *DiscordMessage) MessageDiscordMessageEmbedsG(mods ...qm.QueryMod) discordMessageEmbedQuery {
 	return o.MessageDiscordMessageEmbeds(boil.GetDB(), mods...)
@@ -233,69 +209,28 @@ func (o *DiscordMessage) MessageDiscordMessageEmbeds(exec boil.Executor, mods ..
 	return query
 }
 
-// LoadMessageDiscordMessageRevisions allows an eager lookup of values, cached into the
-// loaded structs of the objects.
-func (discordMessageL) LoadMessageDiscordMessageRevisions(e boil.Executor, singular bool, maybeDiscordMessage interface{}) error {
-	var slice []*DiscordMessage
-	var object *DiscordMessage
+// MessageDiscordMessageRevisionsG retrieves all the discord_message_revision's discord message revisions via message_id column.
+func (o *DiscordMessage) MessageDiscordMessageRevisionsG(mods ...qm.QueryMod) discordMessageRevisionQuery {
+	return o.MessageDiscordMessageRevisions(boil.GetDB(), mods...)
+}
 
-	count := 1
-	if singular {
-		object = maybeDiscordMessage.(*DiscordMessage)
-	} else {
-		slice = *maybeDiscordMessage.(*DiscordMessageSlice)
-		count = len(slice)
+// MessageDiscordMessageRevisions retrieves all the discord_message_revision's discord message revisions with an executor via message_id column.
+func (o *DiscordMessage) MessageDiscordMessageRevisions(exec boil.Executor, mods ...qm.QueryMod) discordMessageRevisionQuery {
+	queryMods := []qm.QueryMod{
+		qm.Select("\"a\".*"),
 	}
 
-	args := make([]interface{}, count)
-	if singular {
-		if object.R == nil {
-			object.R = &discordMessageR{}
-		}
-		args[0] = object.ID
-	} else {
-		for i, obj := range slice {
-			if obj.R == nil {
-				obj.R = &discordMessageR{}
-			}
-			args[i] = obj.ID
-		}
+	if len(mods) != 0 {
+		queryMods = append(queryMods, mods...)
 	}
 
-	query := fmt.Sprintf(
-		"select * from \"discord_message_revisions\" where \"message_id\" in (%s)",
-		strmangle.Placeholders(dialect.IndexPlaceholders, count, 1, 1),
+	queryMods = append(queryMods,
+		qm.Where("\"a\".\"message_id\"=?", o.ID),
 	)
-	if boil.DebugMode {
-		fmt.Fprintf(boil.DebugWriter, "%s\n%v\n", query, args)
-	}
 
-	results, err := e.Query(query, args...)
-	if err != nil {
-		return errors.Wrap(err, "failed to eager load discord_message_revisions")
-	}
-	defer results.Close()
-
-	var resultSlice []*DiscordMessageRevision
-	if err = queries.Bind(results, &resultSlice); err != nil {
-		return errors.Wrap(err, "failed to bind eager loaded slice discord_message_revisions")
-	}
-
-	if singular {
-		object.R.MessageDiscordMessageRevisions = resultSlice
-		return nil
-	}
-
-	for _, foreign := range resultSlice {
-		for _, local := range slice {
-			if local.ID == foreign.MessageID {
-				local.R.MessageDiscordMessageRevisions = append(local.R.MessageDiscordMessageRevisions, foreign)
-				break
-			}
-		}
-	}
-
-	return nil
+	query := DiscordMessageRevisions(exec, queryMods...)
+	queries.SetFrom(query.Query, "\"discord_message_revisions\" as \"a\"")
+	return query
 }
 
 // LoadMessageDiscordMessageEmbeds allows an eager lookup of values, cached into the
@@ -363,87 +298,68 @@ func (discordMessageL) LoadMessageDiscordMessageEmbeds(e boil.Executor, singular
 	return nil
 }
 
-// AddMessageDiscordMessageRevisionsG adds the given related objects to the existing relationships
-// of the discord_message, optionally inserting them as new records.
-// Appends related to o.R.MessageDiscordMessageRevisions.
-// Sets related.R.Message appropriately.
-// Uses the global database handle.
-func (o *DiscordMessage) AddMessageDiscordMessageRevisionsG(insert bool, related ...*DiscordMessageRevision) error {
-	return o.AddMessageDiscordMessageRevisions(boil.GetDB(), insert, related...)
-}
+// LoadMessageDiscordMessageRevisions allows an eager lookup of values, cached into the
+// loaded structs of the objects.
+func (discordMessageL) LoadMessageDiscordMessageRevisions(e boil.Executor, singular bool, maybeDiscordMessage interface{}) error {
+	var slice []*DiscordMessage
+	var object *DiscordMessage
 
-// AddMessageDiscordMessageRevisionsP adds the given related objects to the existing relationships
-// of the discord_message, optionally inserting them as new records.
-// Appends related to o.R.MessageDiscordMessageRevisions.
-// Sets related.R.Message appropriately.
-// Panics on error.
-func (o *DiscordMessage) AddMessageDiscordMessageRevisionsP(exec boil.Executor, insert bool, related ...*DiscordMessageRevision) {
-	if err := o.AddMessageDiscordMessageRevisions(exec, insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// AddMessageDiscordMessageRevisionsGP adds the given related objects to the existing relationships
-// of the discord_message, optionally inserting them as new records.
-// Appends related to o.R.MessageDiscordMessageRevisions.
-// Sets related.R.Message appropriately.
-// Uses the global database handle and panics on error.
-func (o *DiscordMessage) AddMessageDiscordMessageRevisionsGP(insert bool, related ...*DiscordMessageRevision) {
-	if err := o.AddMessageDiscordMessageRevisions(boil.GetDB(), insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// AddMessageDiscordMessageRevisions adds the given related objects to the existing relationships
-// of the discord_message, optionally inserting them as new records.
-// Appends related to o.R.MessageDiscordMessageRevisions.
-// Sets related.R.Message appropriately.
-func (o *DiscordMessage) AddMessageDiscordMessageRevisions(exec boil.Executor, insert bool, related ...*DiscordMessageRevision) error {
-	var err error
-	for _, rel := range related {
-		if insert {
-			rel.MessageID = o.ID
-			if err = rel.Insert(exec); err != nil {
-				return errors.Wrap(err, "failed to insert into foreign table")
-			}
-		} else {
-			updateQuery := fmt.Sprintf(
-				"UPDATE \"discord_message_revisions\" SET %s WHERE %s",
-				strmangle.SetParamNames("\"", "\"", 1, []string{"message_id"}),
-				strmangle.WhereClause("\"", "\"", 2, discordMessageRevisionPrimaryKeyColumns),
-			)
-			values := []interface{}{o.ID, rel.RevisionNum, rel.MessageID}
-
-			if boil.DebugMode {
-				fmt.Fprintln(boil.DebugWriter, updateQuery)
-				fmt.Fprintln(boil.DebugWriter, values)
-			}
-
-			if _, err = exec.Exec(updateQuery, values...); err != nil {
-				return errors.Wrap(err, "failed to update foreign table")
-			}
-
-			rel.MessageID = o.ID
-		}
-	}
-
-	if o.R == nil {
-		o.R = &discordMessageR{
-			MessageDiscordMessageRevisions: related,
-		}
+	count := 1
+	if singular {
+		object = maybeDiscordMessage.(*DiscordMessage)
 	} else {
-		o.R.MessageDiscordMessageRevisions = append(o.R.MessageDiscordMessageRevisions, related...)
+		slice = *maybeDiscordMessage.(*DiscordMessageSlice)
+		count = len(slice)
 	}
 
-	for _, rel := range related {
-		if rel.R == nil {
-			rel.R = &discordMessageRevisionR{
-				Message: o,
+	args := make([]interface{}, count)
+	if singular {
+		if object.R == nil {
+			object.R = &discordMessageR{}
+		}
+		args[0] = object.ID
+	} else {
+		for i, obj := range slice {
+			if obj.R == nil {
+				obj.R = &discordMessageR{}
 			}
-		} else {
-			rel.R.Message = o
+			args[i] = obj.ID
 		}
 	}
+
+	query := fmt.Sprintf(
+		"select * from \"discord_message_revisions\" where \"message_id\" in (%s)",
+		strmangle.Placeholders(dialect.IndexPlaceholders, count, 1, 1),
+	)
+	if boil.DebugMode {
+		fmt.Fprintf(boil.DebugWriter, "%s\n%v\n", query, args)
+	}
+
+	results, err := e.Query(query, args...)
+	if err != nil {
+		return errors.Wrap(err, "failed to eager load discord_message_revisions")
+	}
+	defer results.Close()
+
+	var resultSlice []*DiscordMessageRevision
+	if err = queries.Bind(results, &resultSlice); err != nil {
+		return errors.Wrap(err, "failed to bind eager loaded slice discord_message_revisions")
+	}
+
+	if singular {
+		object.R.MessageDiscordMessageRevisions = resultSlice
+		return nil
+	}
+
+	for _, foreign := range resultSlice {
+		for _, local := range slice {
+			if local.ID == foreign.MessageID {
+				local.R.MessageDiscordMessageRevisions = append(local.R.MessageDiscordMessageRevisions, foreign)
+				break
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -522,6 +438,90 @@ func (o *DiscordMessage) AddMessageDiscordMessageEmbeds(exec boil.Executor, inse
 	for _, rel := range related {
 		if rel.R == nil {
 			rel.R = &discordMessageEmbedR{
+				Message: o,
+			}
+		} else {
+			rel.R.Message = o
+		}
+	}
+	return nil
+}
+
+// AddMessageDiscordMessageRevisionsG adds the given related objects to the existing relationships
+// of the discord_message, optionally inserting them as new records.
+// Appends related to o.R.MessageDiscordMessageRevisions.
+// Sets related.R.Message appropriately.
+// Uses the global database handle.
+func (o *DiscordMessage) AddMessageDiscordMessageRevisionsG(insert bool, related ...*DiscordMessageRevision) error {
+	return o.AddMessageDiscordMessageRevisions(boil.GetDB(), insert, related...)
+}
+
+// AddMessageDiscordMessageRevisionsP adds the given related objects to the existing relationships
+// of the discord_message, optionally inserting them as new records.
+// Appends related to o.R.MessageDiscordMessageRevisions.
+// Sets related.R.Message appropriately.
+// Panics on error.
+func (o *DiscordMessage) AddMessageDiscordMessageRevisionsP(exec boil.Executor, insert bool, related ...*DiscordMessageRevision) {
+	if err := o.AddMessageDiscordMessageRevisions(exec, insert, related...); err != nil {
+		panic(boil.WrapErr(err))
+	}
+}
+
+// AddMessageDiscordMessageRevisionsGP adds the given related objects to the existing relationships
+// of the discord_message, optionally inserting them as new records.
+// Appends related to o.R.MessageDiscordMessageRevisions.
+// Sets related.R.Message appropriately.
+// Uses the global database handle and panics on error.
+func (o *DiscordMessage) AddMessageDiscordMessageRevisionsGP(insert bool, related ...*DiscordMessageRevision) {
+	if err := o.AddMessageDiscordMessageRevisions(boil.GetDB(), insert, related...); err != nil {
+		panic(boil.WrapErr(err))
+	}
+}
+
+// AddMessageDiscordMessageRevisions adds the given related objects to the existing relationships
+// of the discord_message, optionally inserting them as new records.
+// Appends related to o.R.MessageDiscordMessageRevisions.
+// Sets related.R.Message appropriately.
+func (o *DiscordMessage) AddMessageDiscordMessageRevisions(exec boil.Executor, insert bool, related ...*DiscordMessageRevision) error {
+	var err error
+	for _, rel := range related {
+		if insert {
+			rel.MessageID = o.ID
+			if err = rel.Insert(exec); err != nil {
+				return errors.Wrap(err, "failed to insert into foreign table")
+			}
+		} else {
+			updateQuery := fmt.Sprintf(
+				"UPDATE \"discord_message_revisions\" SET %s WHERE %s",
+				strmangle.SetParamNames("\"", "\"", 1, []string{"message_id"}),
+				strmangle.WhereClause("\"", "\"", 2, discordMessageRevisionPrimaryKeyColumns),
+			)
+			values := []interface{}{o.ID, rel.RevisionNum, rel.MessageID}
+
+			if boil.DebugMode {
+				fmt.Fprintln(boil.DebugWriter, updateQuery)
+				fmt.Fprintln(boil.DebugWriter, values)
+			}
+
+			if _, err = exec.Exec(updateQuery, values...); err != nil {
+				return errors.Wrap(err, "failed to update foreign table")
+			}
+
+			rel.MessageID = o.ID
+		}
+	}
+
+	if o.R == nil {
+		o.R = &discordMessageR{
+			MessageDiscordMessageRevisions: related,
+		}
+	} else {
+		o.R.MessageDiscordMessageRevisions = append(o.R.MessageDiscordMessageRevisions, related...)
+	}
+
+	for _, rel := range related {
+		if rel.R == nil {
+			rel.R = &discordMessageRevisionR{
 				Message: o,
 			}
 		} else {

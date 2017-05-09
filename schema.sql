@@ -120,25 +120,13 @@ CREATE TABLE IF NOT EXISTS discord_members (
 	nick varchar(32) NOT NULL,
 	deaf bool NOT NULL,
 	mute bool NOT NULL,
+	roles bigint[] NOT NULL,
 
 	PRIMARY KEY(user_id, guild_id)
 );
 
+CREATE INDEX ON discord_members(user_id);
 CREATE INDEX ON discord_members(guild_id);
-
-DROP TABLE IF EXISTS discord_member_roles;
-
-CREATE TABLE IF NOT EXISTS discord_member_roles (
-	user_id bigint references discord_users(id) NOT NULL,
-	guild_id bigint references discord_guilds(id) NOT NULL,
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-
-	role_id bigint references discord_guild_roles(id) NOT NULL,
-	
-	PRIMARY KEY(user_id, guild_id)
-);
-
-CREATE INDEX ON discord_member_roles(guild_id);
 
 DROP TABLE IF EXISTS disord_voice_states;
 
