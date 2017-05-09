@@ -890,6 +890,22 @@ func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.Discord
 		Mentions:     []int64{},
 		MentionRoles: []int64{},
 	}
+
+	for _, u := range m.Mentions {
+		parsed, err := strconv.ParseInt(u.ID, 10, 64)
+		if err == nil {
+			revisionModel.Mentions = append(revisionModel.Mentions, parsed)
+		}
+	}
+	for _, r := range m.MentionRoles {
+		parsed, err := strconv.ParseInt(r, 10, 64)
+		if err == nil {
+			revisionModel.MentionRoles = append(revisionModel.MentionRoles, parsed)
+		}
+	}
+	messageModel.Mentions = revisionModel.Mentions
+	messageModel.MentionRoles = revisionModel.MentionRoles
+
 	err = revisionModel.Insert(transaction)
 	if s.handleError(err, "Failed updating message, inserting new revision") {
 		transaction.Rollback()
