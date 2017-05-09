@@ -46,6 +46,7 @@ type Server struct {
 	readyShards []bool
 	readyGuilds map[int64]bool
 	readyLock   sync.RWMutex
+	loadedUsers map[string]bool // Loaded users
 
 	cache        memCache
 	shardWorkers []*shardWorker
@@ -67,6 +68,7 @@ func NewServer(db *sql.DB, numShards int) *Server {
 		LoadAllMembers: true,
 		readyShards:    make([]bool, numShards),
 		readyGuilds:    make(map[int64]bool),
+		loadedUsers:    make(map[string]bool),
 	}
 }
 
@@ -238,9 +240,9 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) {
 
 	// Members
 	case *discordgo.GuildMemberAdd:
-		srv.updateMember(s, t.Member, true)
+		srv.updateMember(srv.db, s, t.Member, true)
 	case *discordgo.GuildMemberUpdate:
-		srv.updateMember(s, t.Member, true)
+		srv.updateMember(srv.db, s, t.Member, true)
 	case *discordgo.GuildMemberRemove:
 		models.DiscordMembers(srv.db, qm.Where("user_id = ?", t.User.ID), qm.Where("guild_id = ?", t.GuildID)).UpdateAll(models.M{"left_at": time.Now()})
 	// Roles
@@ -282,7 +284,7 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) {
 	case *discordgo.UserUpdate:
 		srv.updateUser(nil, t.User)
 	case *discordgo.PresenceUpdate:
-		srv.presenceUpdate(t)
+		srv.presenceUpdate(srv.db, &t.Presence)
 	case *discordgo.GuildMembersChunk:
 		srv.guildMembersChunk(t)
 	}
@@ -341,7 +343,6 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 		}
 
 		srv.readyLock.Lock()
-		logrus.Println(parsedGID)
 		if v.Unavailable {
 			srv.readyGuilds[parsedGID] = false
 			logrus.Println(parsedGID, len(srv.readyGuilds))
@@ -371,7 +372,7 @@ func (srv *Server) guildMembersChunk(chunk *discordgo.GuildMembersChunk) {
 	started := time.Now()
 	for _, v := range chunk.Members {
 		v.GuildID = chunk.GuildID
-		srv.updateMember(nil, v, true)
+		srv.updateMember(srv.db, nil, v, true)
 	}
 	logrus.Debug("Updated ", len(chunk.Members), " in ", time.Since(started))
 }
@@ -401,10 +402,52 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 	logrus.Debug("GC! ", g.Name)
 	srv.guildUpdate(session, g)
 
+	toUpdatePresences := make([]*discordgo.Presence, 0)
+	srv.readyLock.Lock()
+	startedCreatingLists := time.Now()
+	for _, v := range g.Presences {
+		if _, ok := srv.loadedUsers[v.User.ID]; !ok {
+			toUpdatePresences = append(toUpdatePresences, v)
+			srv.loadedUsers[v.User.ID] = true
+		}
+	}
+
+	for _, v := range g.Members {
+		if _, ok := srv.loadedUsers[v.User.ID]; !ok {
+			toUpdatePresences = append(toUpdatePresences, &discordgo.Presence{User: v.User})
+			srv.loadedUsers[v.User.ID] = true
+		}
+	}
+	srv.readyLock.Unlock()
+	if len(g.Members) > 500 {
+		logrus.Println("Took ", time.Since(startedCreatingLists), "To load update lists ", len(toUpdatePresences))
+	}
+
+	tx, err := srv.db.Begin()
+	if srv.handleError(err, "Failed starting transaction to update members and presneces") {
+		return
+	}
+
+	for _, v := range toUpdatePresences {
+		// These savepoints made postgres run out of shared memory
+		// tx.Exec("SAVEPOINT sp")
+		err = srv.presenceUpdate(tx, v)
+		if srv.handleError(err, "Failed updating presence") {
+			// tx.Exec("ROLLBACK TO SAVEPOINT sp")
+		}
+	}
+
 	// Update all the members and users
 	for _, v := range g.Members {
-		srv.updateMember(session, v, true)
+		// tx.Exec("SAVEPOINT sp")
+		err = srv.updateMember(tx, session, v, false)
+		if srv.handleError(err, "Failed updating member") {
+			// tx.Exec("ROLLBACK TO SAVEPOINT sp")
+		}
 	}
+
+	err = tx.Commit()
+	srv.handleError(err, "Failed comitting guild create transaction")
 }
 
 func (srv *Server) guildRemove(g *discordgo.Guild) {
@@ -477,9 +520,7 @@ func (srv *Server) guildUpdate(session *discordgo.Session, g *discordgo.Guild) {
 	}
 }
 
-func (s *Server) updateUser(tx *sql.Tx, user *discordgo.User) error {
-
-	exec := boil.Executor(tx)
+func (s *Server) updateUser(exec boil.Executor, user *discordgo.User) error {
 	if exec == nil {
 		exec = s.db
 	}
@@ -498,7 +539,7 @@ func (s *Server) updateUser(tx *sql.Tx, user *discordgo.User) error {
 	return err
 }
 
-func (s *Server) presenceUpdate(p *discordgo.PresenceUpdate) {
+func (s *Server) presenceUpdate(exec boil.Executor, p *discordgo.Presence) error {
 	// if p.User.Username == "" && !s.UpdateGameStatus {
 	// 	return
 	// }
@@ -511,7 +552,7 @@ func (s *Server) presenceUpdate(p *discordgo.PresenceUpdate) {
 		Status: string(p.Status),
 	}
 
-	columns := []string{}
+	columns := []string{"game_name", "game_type", "game_url"}
 	if p.User.Username != "" {
 		model.Username = p.User.Username
 		model.Discriminator = p.User.Discriminator
@@ -529,25 +570,21 @@ func (s *Server) presenceUpdate(p *discordgo.PresenceUpdate) {
 		model.GameName = null.StringFrom(p.Game.Name)
 		model.GameType = null.IntFrom(p.Game.Type)
 		model.GameURL = null.StringFrom(p.Game.URL)
-
-		columns = append(columns, "game_name", "game_type", "game_url")
 	}
-	err = model.Upsert(s.db, true, []string{"id"}, columns)
-	s.handleError(err, "Failed upserting presence")
+
+	err = model.Upsert(exec, true, []string{"id"}, columns)
+	if err != nil {
+		return errors.Wrap(err, "Failed updating presence")
+	}
+	return nil
 }
 
-func (s *Server) updateMember(session *discordgo.Session, member *discordgo.Member, updtUser bool) {
+func (s *Server) updateMember(exec boil.Executor, session *discordgo.Session, member *discordgo.Member, updtUser bool) error {
 	// Update roles
-	transaction, err := s.db.Begin()
-	if s.handleError(err, "Failed starting a transaction to updating member") {
-		return
-	}
-
 	if updtUser {
-		err = s.updateUser(transaction, member.User)
-		if s.handleError(err, "Failed updating user") {
-			transaction.Rollback()
-			return
+		err := s.updateUser(exec, member.User)
+		if err != nil {
+			return errors.Wrap(err, "Failed updating user")
 		}
 	}
 
@@ -573,55 +610,11 @@ func (s *Server) updateMember(session *discordgo.Session, member *discordgo.Memb
 		model.Roles = append(model.Roles, parsed)
 	}
 
-	err = model.Upsert(transaction, true, []string{"user_id", "guild_id"}, []string{"left_at", "joined_at", "nick", "deaf", "mute", "roles"})
-	if s.handleError(err, "Failed upserting member") {
-		transaction.Rollback()
-		return
+	err = model.Upsert(exec, true, []string{"user_id", "guild_id"}, []string{"left_at", "joined_at", "nick", "deaf", "mute", "roles"})
+	if err != nil {
+		return errors.Wrap(err, "Failed updating member")
 	}
-
-	// args := []interface{}{parsedMID, parsedGID}
-	// query := "DELETE FROM discord_member_roles WHERE user_id = $1 AND guild_id = $2"
-	// if len(member.Roles) > 0 {
-	// 	query += " AND role_id NOT IN ("
-	// 	for i, v := range member.Roles {
-	// 		if i != 0 {
-	// 			query += ","
-	// 		}
-	// 		query += "$" + strconv.Itoa(i+3)
-	// 		args = append(args, v)
-	// 	}
-	// 	query += ")"
-	// }
-
-	// _, err = transaction.Exec(query, args...)
-	// if s.handleError(err, "Failed removing member old roles") {
-	// 	transaction.Rollback()
-	// 	return
-	// }
-
-	// for _, v := range member.Roles {
-	// 	transaction.Exec("SAVEPOINT sp")
-	// 	parsedRoleID, err := strconv.ParseInt(v, 10, 64)
-	// 	if s.handleError(err, "Failed parsing role id") {
-	// 		continue
-	// 	}
-	// 	model := models.DiscordMemberRole{
-	// 		UserID:  parsedMID,
-	// 		GuildID: parsedGID,
-	// 		RoleID:  parsedRoleID,
-	// 	}
-
-	// 	err = model.Upsert(transaction, false, []string{"user_id", "guild_id"}, nil)
-	// 	if err != nil {
-	// 		if err.Error() != `pq: insert or update on table "discord_member_roles" violates foreign key constraint "discord_member_roles_role_id_fkey"` {
-	// 			s.handleError(err, fmt.Sprint("Failed upserting member role update ", parsedRoleID, " : ", parsedGID))
-	// 		}
-	// 		transaction.Exec("ROLLBACK TO SAVEPOINT sp")
-	// 	}
-	// }
-
-	err = transaction.Commit()
-	s.handleError(err, "Failed committing updating member roles")
+	return nil
 }
 
 func (s *Server) updateRole(guildID string, role *discordgo.Role) {

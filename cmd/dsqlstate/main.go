@@ -50,7 +50,7 @@ func main() {
 		logrus.WithError(err).Fatal("Failed opening db connection")
 		return
 	}
-	db.SetMaxOpenConns(25)
+	db.SetMaxOpenConns(10)
 
 	server = dsqlstate.NewServer(db, 0)
 	// server.Debug = true
