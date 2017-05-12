@@ -73,6 +73,9 @@ type Server struct {
 	removedFK   bool
 	loadedUsers map[string]bool // Loaded users
 
+	chunkLock       sync.Mutex
+	chunkEvtHandled bool
+
 	cache        memCache
 	shardWorkers []*shardWorker
 }
@@ -151,6 +154,15 @@ func (s *shardWorker) queueHandler() {
 			if len(guildsToBeProcessed) < 1 || !s.server.AllGuildsReady() {
 				continue
 			}
+			s.server.chunkLock.Lock()
+			if !s.server.chunkEvtHandled {
+				s.server.chunkLock.Unlock()
+				continue
+			} else {
+				s.server.chunkEvtHandled = false
+				s.server.chunkLock.Unlock()
+			}
+
 			g := guildsToBeProcessed[0]
 			guildsToBeProcessed = guildsToBeProcessed[1:]
 
@@ -412,6 +424,10 @@ func (srv *Server) guildMembersChunk(chunk *discordgo.GuildMembersChunk) {
 		srv.updateMember(srv.db, nil, v, true)
 	}
 	logrus.Debug("Updated ", len(chunk.Members), " in ", time.Since(started))
+
+	srv.chunkLock.Lock()
+	srv.chunkEvtHandled = true
+	srv.chunkLock.Unlock()
 }
 
 func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
@@ -430,7 +446,7 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 			// Re-instantiate the foreign key
 			_, err := srv.db.Exec("ALTER TABLE discord_members ADD FOREIGN KEY(user_id) REFERENCES discord_users(id)")
 			if !srv.handleError(err, "Failed adding back foreign key") {
-				srv.removedFK = true
+				srv.removedFK = false
 			}
 		}
 	}()
@@ -451,6 +467,7 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 	logrus.Debug("GC! ", g.Name)
 	srv.guildUpdate(session, g)
 
+	logrus.Debug(g.ID, ": ", len(g.Roles))
 	// Update all roles
 	for _, v := range g.Roles {
 		srv.updateRole(g.ID, v)

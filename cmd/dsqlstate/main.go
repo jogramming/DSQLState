@@ -19,7 +19,7 @@ var (
 )
 
 func main() {
-	logrus.Info("Starting...")
+	logrus.Info("Starting... v0.0.3")
 	logrus.SetLevel(logrus.DebugLevel)
 
 	if doTrace {

@@ -237,3 +237,11 @@ CREATE TABLE IF NOT EXISTS discord_message_embeds (
 );
 
 CREATE INDEX ON discord_message_embeds(message_id);
+
+CREATE TABLE IF NOT EXISTS discord_change_logs (
+	id bigserial PRIMARY KEY,
+	field int NOT NULL,
+	valueInt bigint,
+	valueString text,
+	valueBOol bool,
+)
