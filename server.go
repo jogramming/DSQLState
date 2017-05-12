@@ -64,6 +64,8 @@ type Server struct {
 	LoadAllMembers   bool
 	UpdateGameStatus bool
 
+	LogChanges TrackChangesSettings
+
 	// Queue all events until ready
 	readyShards []bool
 	readyGuilds map[int64]bool
@@ -449,6 +451,16 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 	logrus.Debug("GC! ", g.Name)
 	srv.guildUpdate(session, g)
 
+	// Update all roles
+	for _, v := range g.Roles {
+		srv.updateRole(g.ID, v)
+	}
+
+	// Update all channels
+	for _, v := range g.Channels {
+		srv.updateGuildChannel(v)
+	}
+
 	toUpdatePresences := make(map[string]*discordgo.Presence)
 	srv.readyLock.Lock()
 
@@ -526,6 +538,10 @@ func (srv *Server) guildRemove(g *discordgo.Guild) {
 	delete(srv.readyGuilds, parsedID)
 	srv.readyLock.Unlock()
 	srv.db.Exec("UPDATE discord_guilds SET left_at = $1 WHERE id = $2", time.Now(), g.ID)
+	models.DiscordVoiceStates(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
+	models.DiscordMembers(srv.db, qm.Where("id = ?", g.ID)).DeleteAll()
+	models.DiscordGuildRoles(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
+	models.DiscordGuildChannels(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
 }
 
 func (srv *Server) guildUpdate(session *discordgo.Session, g *discordgo.Guild) {
@@ -578,16 +594,6 @@ func (srv *Server) guildUpdate(session *discordgo.Session, g *discordgo.Guild) {
 
 	err = model.Upsert(srv.db, true, []string{"id"}, []string{"name", "icon", "region", "afk_channel_id", "embed_channel_id", "owner_id", "splash", "afk_timeout", "member_count", "verification_level", "embed_enabled", "large", "default_message_notifications", "left_at"})
 	srv.handleError(err, "Failed upserting guild")
-
-	// Update all roles
-	for _, v := range g.Roles {
-		srv.updateRole(g.ID, v)
-	}
-
-	// Update all channels
-	for _, v := range g.Channels {
-		srv.updateGuildChannel(v)
-	}
 }
 
 func (s *Server) updateUser(exec boil.Executor, user *discordgo.User) error {
