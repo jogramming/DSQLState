@@ -75,7 +75,7 @@ func main() {
 			if server.AllGuildsReady() {
 				ticker2.Stop()
 				logrus.Info("All ready! took: ", time.Since(started))
-				return
+				// return
 			}
 		}
 	}

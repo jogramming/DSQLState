@@ -32,6 +32,28 @@ type memCache struct {
 	sync.Mutex
 }
 
+// TrackChangesSettings contains a bunch of toggles for what to send change events on
+// change events are sent to a table you can query on a interval to then process.
+// Toggles that are commented out are not yet implemented but planned
+type TrackChangesSettings struct {
+	Username       bool
+	PresenceGame   bool
+	PresenceURL    bool
+	PresenceStatus bool
+
+	ChannelName       bool
+	ChannelTopic      bool
+	ChannelPermission bool
+
+	MemberNickname bool
+	MemberAdded    bool
+	MemberRoles    bool
+	UserAdded      bool
+
+	VoiceStateChangeChannel bool
+	VoiceStateMuteDeaf      bool
+}
+
 // Server keeps the database up to date
 type Server struct {
 	self             *discordgo.User
@@ -46,6 +68,7 @@ type Server struct {
 	readyShards []bool
 	readyGuilds map[int64]bool
 	readyLock   sync.RWMutex
+	removedFK   bool
 	loadedUsers map[string]bool // Loaded users
 
 	cache        memCache
@@ -154,9 +177,7 @@ func (s *Server) handleError(err error, message string) bool {
 	return true
 }
 
-func (s *Server) AllGuildsReady() bool {
-	s.readyLock.RLock()
-	defer s.readyLock.RUnlock()
+func (s *Server) AllGuildsReadyNL() bool {
 	for _, v := range s.readyShards {
 		if !v {
 			return false
@@ -169,6 +190,12 @@ func (s *Server) AllGuildsReady() bool {
 	}
 
 	return true
+}
+
+func (s *Server) AllGuildsReady() bool {
+	s.readyLock.RLock()
+	defer s.readyLock.RUnlock()
+	return s.AllGuildsReadyNL()
 }
 
 func (s *Server) NumNotReady() (bool, int) {
@@ -309,6 +336,14 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 
 	srv.cache.Lock()
 	srv.cache.SelfUser = r.User
+	if !srv.removedFK {
+		// Remove the user_id foreign key on members temporarily because of race conditions
+		// It gets added back later when all shards and guilds have done their initial load
+		_, err := srv.db.Exec("ALTER TABLE discord_members DROP CONSTRAINT discord_members_user_id_fkey")
+		if !srv.handleError(err, "Failed temporarily removing foreign key") {
+			srv.removedFK = true
+		}
+	}
 	srv.cache.Unlock()
 
 	// var now = time.Now()
@@ -379,11 +414,23 @@ func (srv *Server) guildMembersChunk(chunk *discordgo.GuildMembersChunk) {
 
 func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 	parsedGID, _ := strconv.ParseInt(g.ID, 10, 64)
-
 	defer func() {
+
 		srv.readyLock.Lock()
+		defer srv.readyLock.Unlock()
 		delete(srv.readyGuilds, parsedGID)
-		srv.readyLock.Unlock()
+
+		if !srv.removedFK {
+			return
+		}
+
+		if srv.AllGuildsReadyNL() {
+			// Re-instantiate the foreign key
+			_, err := srv.db.Exec("ALTER TABLE discord_members ADD FOREIGN KEY(user_id) REFERENCES discord_users(id)")
+			if !srv.handleError(err, "Failed adding back foreign key") {
+				srv.removedFK = true
+			}
+		}
 	}()
 
 	if srv.LoadAllMembers && g.Large {
@@ -402,23 +449,42 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 	logrus.Debug("GC! ", g.Name)
 	srv.guildUpdate(session, g)
 
-	toUpdatePresences := make([]*discordgo.Presence, 0)
+	toUpdatePresences := make(map[string]*discordgo.Presence)
 	srv.readyLock.Lock()
-	startedCreatingLists := time.Now()
-	for _, v := range g.Presences {
-		if _, ok := srv.loadedUsers[v.User.ID]; !ok {
-			toUpdatePresences = append(toUpdatePresences, v)
-			srv.loadedUsers[v.User.ID] = true
-		}
-	}
 
-	for _, v := range g.Members {
-		if _, ok := srv.loadedUsers[v.User.ID]; !ok {
-			toUpdatePresences = append(toUpdatePresences, &discordgo.Presence{User: v.User})
-			srv.loadedUsers[v.User.ID] = true
+	startedCreatingLists := time.Now()
+	if srv.removedFK {
+		for _, v := range g.Presences {
+			if _, ok := srv.loadedUsers[v.User.ID]; !ok {
+				toUpdatePresences[v.User.ID] = v
+				srv.loadedUsers[v.User.ID] = true
+			}
+		}
+		for _, v := range g.Members {
+			if _, ok := srv.loadedUsers[v.User.ID]; !ok {
+				if p, ok := toUpdatePresences[v.User.ID]; ok {
+					p.User = v.User
+				} else {
+					toUpdatePresences[v.User.ID] = &discordgo.Presence{User: v.User}
+					srv.loadedUsers[v.User.ID] = true
+				}
+			}
+		}
+	} else {
+		for _, v := range g.Presences {
+			toUpdatePresences[v.User.ID] = v
+		}
+
+		for _, v := range g.Members {
+			if p, ok := toUpdatePresences[v.User.ID]; ok {
+				p.User = v.User
+			} else {
+				toUpdatePresences[v.User.ID] = &discordgo.Presence{User: v.User}
+			}
 		}
 	}
 	srv.readyLock.Unlock()
+
 	if len(g.Members) > 500 {
 		logrus.Println("Took ", time.Since(startedCreatingLists), "To load update lists ", len(toUpdatePresences))
 	}
@@ -448,6 +514,10 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 
 	err = tx.Commit()
 	srv.handleError(err, "Failed comitting guild create transaction")
+
+	for _, v := range g.VoiceStates {
+		srv.updateVoiecState(v)
+	}
 }
 
 func (srv *Server) guildRemove(g *discordgo.Guild) {
@@ -612,7 +682,8 @@ func (s *Server) updateMember(exec boil.Executor, session *discordgo.Session, me
 
 	err = model.Upsert(exec, true, []string{"user_id", "guild_id"}, []string{"left_at", "joined_at", "nick", "deaf", "mute", "roles"})
 	if err != nil {
-		return errors.Wrap(err, "Failed updating member")
+		panicErr(err)
+		// return errors.Wrap(err, "Failed updating member")
 	}
 	return nil
 }
