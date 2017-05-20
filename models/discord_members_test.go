@@ -371,56 +371,6 @@ func testDiscordMemberToOneDiscordUserUsingUser(t *testing.T) {
 	}
 }
 
-func testDiscordMemberToOneDiscordGuildUsingGuild(t *testing.T) {
-	tx := MustTx(boil.Begin())
-	defer tx.Rollback()
-
-	var local DiscordMember
-	var foreign DiscordGuild
-
-	seed := randomize.NewSeed()
-	if err := randomize.Struct(seed, &local, discordMemberDBTypes, true, discordMemberColumnsWithDefault...); err != nil {
-		t.Errorf("Unable to randomize DiscordMember struct: %s", err)
-	}
-	if err := randomize.Struct(seed, &foreign, discordGuildDBTypes, true, discordGuildColumnsWithDefault...); err != nil {
-		t.Errorf("Unable to randomize DiscordGuild struct: %s", err)
-	}
-
-	if err := foreign.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	local.GuildID = foreign.ID
-	if err := local.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	check, err := local.Guild(tx).One()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if check.ID != foreign.ID {
-		t.Errorf("want: %v, got %v", foreign.ID, check.ID)
-	}
-
-	slice := DiscordMemberSlice{&local}
-	if err = local.L.LoadGuild(tx, false, &slice); err != nil {
-		t.Fatal(err)
-	}
-	if local.R.Guild == nil {
-		t.Error("struct should have been eager loaded")
-	}
-
-	local.R.Guild = nil
-	if err = local.L.LoadGuild(tx, true, &local); err != nil {
-		t.Fatal(err)
-	}
-	if local.R.Guild == nil {
-		t.Error("struct should have been eager loaded")
-	}
-}
-
 func testDiscordMemberToOneSetOpDiscordUserUsingUser(t *testing.T) {
 	var err error
 
@@ -463,58 +413,6 @@ func testDiscordMemberToOneSetOpDiscordUserUsingUser(t *testing.T) {
 		}
 		if a.UserID != x.ID {
 			t.Error("foreign key was wrong value", a.UserID)
-		}
-
-		if exists, err := DiscordMemberExists(tx, a.UserID, a.GuildID); err != nil {
-			t.Fatal(err)
-		} else if !exists {
-			t.Error("want 'a' to exist")
-		}
-
-	}
-}
-func testDiscordMemberToOneSetOpDiscordGuildUsingGuild(t *testing.T) {
-	var err error
-
-	tx := MustTx(boil.Begin())
-	defer tx.Rollback()
-
-	var a DiscordMember
-	var b, c DiscordGuild
-
-	seed := randomize.NewSeed()
-	if err = randomize.Struct(seed, &a, discordMemberDBTypes, false, strmangle.SetComplement(discordMemberPrimaryKeyColumns, discordMemberColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	if err = randomize.Struct(seed, &b, discordGuildDBTypes, false, strmangle.SetComplement(discordGuildPrimaryKeyColumns, discordGuildColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-	if err = randomize.Struct(seed, &c, discordGuildDBTypes, false, strmangle.SetComplement(discordGuildPrimaryKeyColumns, discordGuildColumnsWithoutDefault)...); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := a.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-	if err = b.Insert(tx); err != nil {
-		t.Fatal(err)
-	}
-
-	for i, x := range []*DiscordGuild{&b, &c} {
-		err = a.SetGuild(tx, i != 0, x)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if a.R.Guild != x {
-			t.Error("relationship struct not set to correct value")
-		}
-
-		if x.R.GuildDiscordMembers[0] != &a {
-			t.Error("failed to append to foreign relationship struct")
-		}
-		if a.GuildID != x.ID {
-			t.Error("foreign key was wrong value", a.GuildID)
 		}
 
 		if exists, err := DiscordMemberExists(tx, a.UserID, a.GuildID); err != nil {

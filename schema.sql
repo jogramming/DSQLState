@@ -1,5 +1,4 @@
 DROP TABLE IF EXISTS discord_users CASCADE;
-
 CREATE TABLE IF NOT EXISTS discord_users (
 	id            bigint PRIMARY KEY,
 	created_at    TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -15,20 +14,12 @@ CREATE TABLE IF NOT EXISTS discord_users (
 	game_url text
 );
 
--- create function lower(t text[]) returns text[]
--- as
--- $$
--- select lower($1::text)::text[]
--- $$ language sql;
-
 CREATE INDEX ON discord_users(lower(username));
 
 DROP TABLE IF EXISTS discord_guilds CASCADE;
-
 CREATE TABLE IF NOT EXISTS discord_guilds (
 	id bigint PRIMARY KEY,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-
 	left_at TIMESTAMP WITH TIME ZONE,
 
 	name               text NOT NULL,
@@ -47,10 +38,9 @@ CREATE TABLE IF NOT EXISTS discord_guilds (
 );
 
 DROP TABLE IF EXISTS discord_guild_roles CASCADE;
-
 CREATE TABLE IF NOT EXISTS discord_guild_roles (
 	id bigint PRIMARY KEY,
-	guild_id bigint references discord_guilds(id) NOT NULL,
+	guild_id bigint NOT NULL,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	deleted_at TIMESTAMP WITH TIME ZONE,
 
@@ -63,11 +53,11 @@ CREATE TABLE IF NOT EXISTS discord_guild_roles (
 	permissions int NOT NULL
 );
 
-DROP TABLE IF EXISTS discord_guild_channels CASCADE;
-
-CREATE TABLE IF NOT EXISTS discord_guild_channels (
+DROP TABLE IF EXISTS discord_channels CASCADE;
+CREATE TABLE IF NOT EXISTS discord_channels (
 	id bigint PRIMARY KEY,
-	guild_id bigint references discord_guilds(id) NOT NULL,
+	guild_id bigint,
+	recipient_id bigint,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	deleted_at TIMESTAMP WITH TIME ZONE,
 
@@ -79,11 +69,13 @@ CREATE TABLE IF NOT EXISTS discord_guild_channels (
 	bitrate int NOT NULL
 );
 
-CREATE INDEX ON discord_guild_channels(guild_id);
+CREATE INDEX ON discord_channels(guild_id);
+CREATE INDEX ON discord_channels(recipient_id);
 
+DROP TABLE IF EXISTS discord_channel_overwrites CASCADE;
 CREATE TABLE IF NOT EXISTS discord_channel_overwrites (
 	id bigint NOT NULL,
-	channel_id bigint references discord_guild_channels(id) NOT NULL,
+	channel_id bigint references discord_channels(id) NOT NULL,
 
 	type varchar(10) NOT NULL,
 	allow int NOT NULL,
@@ -95,23 +87,11 @@ CREATE TABLE IF NOT EXISTS discord_channel_overwrites (
 CREATE INDEX ON discord_channel_overwrites(channel_id);
 CREATE INDEX ON discord_channel_overwrites(id);
 
-DROP TABLE IF EXISTS discord_private_channels;
-
-CREATE TABLE IF NOT EXISTS discord_private_channels (
-	id bigint PRIMARY KEY,
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-	recipient_id bigint references discord_users(id) NOT NULL,
-
-	name text NOT NULL,
-	topic text NOT NULL,
-	last_message_id bigint NOT NULL
-);
-
 DROP TABLE IF EXISTS discord_members;
 
 CREATE TABLE IF NOT EXISTS discord_members (
 	user_id bigint references discord_users(id) NOT NULL,
-	guild_id bigint references discord_guilds(id) NOT NULL,
+	guild_id bigint NOT NULL,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 
 	left_at TIMESTAMP WITH TIME ZONE,
@@ -128,12 +108,11 @@ CREATE TABLE IF NOT EXISTS discord_members (
 CREATE INDEX ON discord_members(user_id);
 CREATE INDEX ON discord_members(guild_id);
 
-DROP TABLE IF EXISTS disord_voice_states;
-
+DROP TABLE IF EXISTS discord_voice_states;
 CREATE TABLE IF NOT EXISTS discord_voice_states (
 	user_id bigint NOT NULL,
-	guild_id bigint references discord_guilds(id) NOT NULL,
-	channel_id bigint references discord_guild_channels(id) NOT NULL,
+	guild_id bigint,
+	channel_id bigint references discord_channels(id) NOT NULL,
 	session_id text NOT NULL,
 
 	surpress bool NOT NULL,
@@ -238,10 +217,11 @@ CREATE TABLE IF NOT EXISTS discord_message_embeds (
 
 CREATE INDEX ON discord_message_embeds(message_id);
 
+DROP TABLE IF EXISTS discord_change_logs;
 CREATE TABLE IF NOT EXISTS discord_change_logs (
 	id bigserial PRIMARY KEY,
 	field int NOT NULL,
 	valueInt bigint,
 	valueString text,
-	valueBOol bool,
+	valueBOol bool
 )

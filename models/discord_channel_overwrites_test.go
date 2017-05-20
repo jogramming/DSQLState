@@ -321,6 +321,108 @@ func testDiscordChannelOverwritesInsertWhitelist(t *testing.T) {
 	}
 }
 
+func testDiscordChannelOverwriteToOneDiscordChannelUsingChannel(t *testing.T) {
+	tx := MustTx(boil.Begin())
+	defer tx.Rollback()
+
+	var local DiscordChannelOverwrite
+	var foreign DiscordChannel
+
+	seed := randomize.NewSeed()
+	if err := randomize.Struct(seed, &local, discordChannelOverwriteDBTypes, true, discordChannelOverwriteColumnsWithDefault...); err != nil {
+		t.Errorf("Unable to randomize DiscordChannelOverwrite struct: %s", err)
+	}
+	if err := randomize.Struct(seed, &foreign, discordChannelDBTypes, true, discordChannelColumnsWithDefault...); err != nil {
+		t.Errorf("Unable to randomize DiscordChannel struct: %s", err)
+	}
+
+	if err := foreign.Insert(tx); err != nil {
+		t.Fatal(err)
+	}
+
+	local.ChannelID = foreign.ID
+	if err := local.Insert(tx); err != nil {
+		t.Fatal(err)
+	}
+
+	check, err := local.Channel(tx).One()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if check.ID != foreign.ID {
+		t.Errorf("want: %v, got %v", foreign.ID, check.ID)
+	}
+
+	slice := DiscordChannelOverwriteSlice{&local}
+	if err = local.L.LoadChannel(tx, false, &slice); err != nil {
+		t.Fatal(err)
+	}
+	if local.R.Channel == nil {
+		t.Error("struct should have been eager loaded")
+	}
+
+	local.R.Channel = nil
+	if err = local.L.LoadChannel(tx, true, &local); err != nil {
+		t.Fatal(err)
+	}
+	if local.R.Channel == nil {
+		t.Error("struct should have been eager loaded")
+	}
+}
+
+func testDiscordChannelOverwriteToOneSetOpDiscordChannelUsingChannel(t *testing.T) {
+	var err error
+
+	tx := MustTx(boil.Begin())
+	defer tx.Rollback()
+
+	var a DiscordChannelOverwrite
+	var b, c DiscordChannel
+
+	seed := randomize.NewSeed()
+	if err = randomize.Struct(seed, &a, discordChannelOverwriteDBTypes, false, strmangle.SetComplement(discordChannelOverwritePrimaryKeyColumns, discordChannelOverwriteColumnsWithoutDefault)...); err != nil {
+		t.Fatal(err)
+	}
+	if err = randomize.Struct(seed, &b, discordChannelDBTypes, false, strmangle.SetComplement(discordChannelPrimaryKeyColumns, discordChannelColumnsWithoutDefault)...); err != nil {
+		t.Fatal(err)
+	}
+	if err = randomize.Struct(seed, &c, discordChannelDBTypes, false, strmangle.SetComplement(discordChannelPrimaryKeyColumns, discordChannelColumnsWithoutDefault)...); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := a.Insert(tx); err != nil {
+		t.Fatal(err)
+	}
+	if err = b.Insert(tx); err != nil {
+		t.Fatal(err)
+	}
+
+	for i, x := range []*DiscordChannel{&b, &c} {
+		err = a.SetChannel(tx, i != 0, x)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if a.R.Channel != x {
+			t.Error("relationship struct not set to correct value")
+		}
+
+		if x.R.ChannelDiscordChannelOverwrites[0] != &a {
+			t.Error("failed to append to foreign relationship struct")
+		}
+		if a.ChannelID != x.ID {
+			t.Error("foreign key was wrong value", a.ChannelID)
+		}
+
+		if exists, err := DiscordChannelOverwriteExists(tx, a.ID, a.ChannelID); err != nil {
+			t.Fatal(err)
+		} else if !exists {
+			t.Error("want 'a' to exist")
+		}
+
+	}
+}
 func testDiscordChannelOverwritesReload(t *testing.T) {
 	t.Parallel()
 

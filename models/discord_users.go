@@ -36,8 +36,7 @@ type DiscordUser struct {
 
 // discordUserR is where relationships are stored.
 type discordUserR struct {
-	RecipientDiscordPrivateChannels DiscordPrivateChannelSlice
-	UserDiscordMembers              DiscordMemberSlice
+	UserDiscordMembers DiscordMemberSlice
 }
 
 // discordUserL is where Load methods for each relationship are stored.
@@ -179,30 +178,6 @@ func (q discordUserQuery) Exists() (bool, error) {
 	return count > 0, nil
 }
 
-// RecipientDiscordPrivateChannelsG retrieves all the discord_private_channel's discord private channels via recipient_id column.
-func (o *DiscordUser) RecipientDiscordPrivateChannelsG(mods ...qm.QueryMod) discordPrivateChannelQuery {
-	return o.RecipientDiscordPrivateChannels(boil.GetDB(), mods...)
-}
-
-// RecipientDiscordPrivateChannels retrieves all the discord_private_channel's discord private channels with an executor via recipient_id column.
-func (o *DiscordUser) RecipientDiscordPrivateChannels(exec boil.Executor, mods ...qm.QueryMod) discordPrivateChannelQuery {
-	queryMods := []qm.QueryMod{
-		qm.Select("\"a\".*"),
-	}
-
-	if len(mods) != 0 {
-		queryMods = append(queryMods, mods...)
-	}
-
-	queryMods = append(queryMods,
-		qm.Where("\"a\".\"recipient_id\"=?", o.ID),
-	)
-
-	query := DiscordPrivateChannels(exec, queryMods...)
-	queries.SetFrom(query.Query, "\"discord_private_channels\" as \"a\"")
-	return query
-}
-
 // UserDiscordMembersG retrieves all the discord_member's discord members via user_id column.
 func (o *DiscordUser) UserDiscordMembersG(mods ...qm.QueryMod) discordMemberQuery {
 	return o.UserDiscordMembers(boil.GetDB(), mods...)
@@ -225,71 +200,6 @@ func (o *DiscordUser) UserDiscordMembers(exec boil.Executor, mods ...qm.QueryMod
 	query := DiscordMembers(exec, queryMods...)
 	queries.SetFrom(query.Query, "\"discord_members\" as \"a\"")
 	return query
-}
-
-// LoadRecipientDiscordPrivateChannels allows an eager lookup of values, cached into the
-// loaded structs of the objects.
-func (discordUserL) LoadRecipientDiscordPrivateChannels(e boil.Executor, singular bool, maybeDiscordUser interface{}) error {
-	var slice []*DiscordUser
-	var object *DiscordUser
-
-	count := 1
-	if singular {
-		object = maybeDiscordUser.(*DiscordUser)
-	} else {
-		slice = *maybeDiscordUser.(*DiscordUserSlice)
-		count = len(slice)
-	}
-
-	args := make([]interface{}, count)
-	if singular {
-		if object.R == nil {
-			object.R = &discordUserR{}
-		}
-		args[0] = object.ID
-	} else {
-		for i, obj := range slice {
-			if obj.R == nil {
-				obj.R = &discordUserR{}
-			}
-			args[i] = obj.ID
-		}
-	}
-
-	query := fmt.Sprintf(
-		"select * from \"discord_private_channels\" where \"recipient_id\" in (%s)",
-		strmangle.Placeholders(dialect.IndexPlaceholders, count, 1, 1),
-	)
-	if boil.DebugMode {
-		fmt.Fprintf(boil.DebugWriter, "%s\n%v\n", query, args)
-	}
-
-	results, err := e.Query(query, args...)
-	if err != nil {
-		return errors.Wrap(err, "failed to eager load discord_private_channels")
-	}
-	defer results.Close()
-
-	var resultSlice []*DiscordPrivateChannel
-	if err = queries.Bind(results, &resultSlice); err != nil {
-		return errors.Wrap(err, "failed to bind eager loaded slice discord_private_channels")
-	}
-
-	if singular {
-		object.R.RecipientDiscordPrivateChannels = resultSlice
-		return nil
-	}
-
-	for _, foreign := range resultSlice {
-		for _, local := range slice {
-			if local.ID == foreign.RecipientID {
-				local.R.RecipientDiscordPrivateChannels = append(local.R.RecipientDiscordPrivateChannels, foreign)
-				break
-			}
-		}
-	}
-
-	return nil
 }
 
 // LoadUserDiscordMembers allows an eager lookup of values, cached into the
@@ -354,90 +264,6 @@ func (discordUserL) LoadUserDiscordMembers(e boil.Executor, singular bool, maybe
 		}
 	}
 
-	return nil
-}
-
-// AddRecipientDiscordPrivateChannelsG adds the given related objects to the existing relationships
-// of the discord_user, optionally inserting them as new records.
-// Appends related to o.R.RecipientDiscordPrivateChannels.
-// Sets related.R.Recipient appropriately.
-// Uses the global database handle.
-func (o *DiscordUser) AddRecipientDiscordPrivateChannelsG(insert bool, related ...*DiscordPrivateChannel) error {
-	return o.AddRecipientDiscordPrivateChannels(boil.GetDB(), insert, related...)
-}
-
-// AddRecipientDiscordPrivateChannelsP adds the given related objects to the existing relationships
-// of the discord_user, optionally inserting them as new records.
-// Appends related to o.R.RecipientDiscordPrivateChannels.
-// Sets related.R.Recipient appropriately.
-// Panics on error.
-func (o *DiscordUser) AddRecipientDiscordPrivateChannelsP(exec boil.Executor, insert bool, related ...*DiscordPrivateChannel) {
-	if err := o.AddRecipientDiscordPrivateChannels(exec, insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// AddRecipientDiscordPrivateChannelsGP adds the given related objects to the existing relationships
-// of the discord_user, optionally inserting them as new records.
-// Appends related to o.R.RecipientDiscordPrivateChannels.
-// Sets related.R.Recipient appropriately.
-// Uses the global database handle and panics on error.
-func (o *DiscordUser) AddRecipientDiscordPrivateChannelsGP(insert bool, related ...*DiscordPrivateChannel) {
-	if err := o.AddRecipientDiscordPrivateChannels(boil.GetDB(), insert, related...); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// AddRecipientDiscordPrivateChannels adds the given related objects to the existing relationships
-// of the discord_user, optionally inserting them as new records.
-// Appends related to o.R.RecipientDiscordPrivateChannels.
-// Sets related.R.Recipient appropriately.
-func (o *DiscordUser) AddRecipientDiscordPrivateChannels(exec boil.Executor, insert bool, related ...*DiscordPrivateChannel) error {
-	var err error
-	for _, rel := range related {
-		if insert {
-			rel.RecipientID = o.ID
-			if err = rel.Insert(exec); err != nil {
-				return errors.Wrap(err, "failed to insert into foreign table")
-			}
-		} else {
-			updateQuery := fmt.Sprintf(
-				"UPDATE \"discord_private_channels\" SET %s WHERE %s",
-				strmangle.SetParamNames("\"", "\"", 1, []string{"recipient_id"}),
-				strmangle.WhereClause("\"", "\"", 2, discordPrivateChannelPrimaryKeyColumns),
-			)
-			values := []interface{}{o.ID, rel.ID}
-
-			if boil.DebugMode {
-				fmt.Fprintln(boil.DebugWriter, updateQuery)
-				fmt.Fprintln(boil.DebugWriter, values)
-			}
-
-			if _, err = exec.Exec(updateQuery, values...); err != nil {
-				return errors.Wrap(err, "failed to update foreign table")
-			}
-
-			rel.RecipientID = o.ID
-		}
-	}
-
-	if o.R == nil {
-		o.R = &discordUserR{
-			RecipientDiscordPrivateChannels: related,
-		}
-	} else {
-		o.R.RecipientDiscordPrivateChannels = append(o.R.RecipientDiscordPrivateChannels, related...)
-	}
-
-	for _, rel := range related {
-		if rel.R == nil {
-			rel.R = &discordPrivateChannelR{
-				Recipient: o,
-			}
-		} else {
-			rel.R.Recipient = o
-		}
-	}
 	return nil
 }
 

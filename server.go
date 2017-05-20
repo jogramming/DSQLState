@@ -8,9 +8,9 @@ import (
 	"sync"
 	// "encoding/json"
 	"github.com/Sirupsen/logrus"
-	"github.com/jonas747/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/jonas747/dsqlstate/models"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"gopkg.in/nullbio/null.v6"
 	"reflect"
@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-//go:generate sqlboiler --no-hooks -w "discord_users,discord_guilds,discord_guild_roles,discord_guild_channels,discord_private_channels,discord_members,discord_channel_overwrites,discord_voice_states,discord_messages,discord_message_revisions,discord_message_embeds" postgres
+//go:generate sqlboiler --no-hooks -w "discord_users,discord_guilds,discord_guild_roles,discord_channels,discord_members,discord_channel_overwrites,discord_voice_states,discord_messages,discord_message_revisions,discord_message_embeds,discord_change_logs" postgres
 
 func panicErr(err error) {
 	if err != nil {
@@ -67,11 +67,14 @@ type Server struct {
 	LogChanges TrackChangesSettings
 
 	// Queue all events until ready
-	readyShards []bool
-	readyGuilds map[int64]bool
-	readyLock   sync.RWMutex
-	removedFK   bool
-	loadedUsers map[string]bool // Loaded users
+	readyShards            []bool
+	readyGuilds            map[int64]bool
+	readyLock              sync.RWMutex
+	removedFK              bool
+	loadedUsers            map[string]bool // Loaded users
+	processingQueuedEvents bool
+
+	queue *EventQueue
 
 	chunkLock       sync.Mutex
 	chunkEvtHandled bool
@@ -86,18 +89,24 @@ type QueuedEvent struct {
 }
 
 // New returns a default state using the database
-func NewServer(db *sql.DB, numShards int) *Server {
+func NewServer(db *sql.DB, numShards int) (*Server, error) {
 	if numShards < 1 {
 		numShards = 1
 	}
 
+	queue, err := NewEventQueue()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Server{
 		db:             db,
+		queue:          queue,
 		LoadAllMembers: true,
 		readyShards:    make([]bool, numShards),
 		readyGuilds:    make(map[int64]bool),
 		loadedUsers:    make(map[string]bool),
-	}
+	}, nil
 }
 
 // RunWorkers starts the shard workers, this is required if you want all members loaded into the db
@@ -113,8 +122,10 @@ func (s *Server) RunWorkers(numShards int) {
 			StopChan: make(chan bool),
 			server:   s,
 		}
-		go s.shardWorkers[i].queueHandler()
+		go s.shardWorkers[i].chunkQueueHandler()
 	}
+
+	go s.eventQueuePuller()
 }
 
 // StopWorkers stops the member fetcher workers
@@ -139,7 +150,7 @@ type shardWorker struct {
 
 // Purpose of this queue is to send guild members requests to the gatway
 // but if we do it too fast, we will get disconnected
-func (s *shardWorker) queueHandler() {
+func (s *shardWorker) chunkQueueHandler() {
 	guildsToBeProcessed := make([]*GuildCreateEvt, 0)
 
 	ticker := time.NewTicker(time.Second)
@@ -174,6 +185,31 @@ func (s *shardWorker) queueHandler() {
 				guildsToBeProcessed = append(guildsToBeProcessed, g)
 			}
 		}
+	}
+}
+
+func (s *Server) eventQueuePuller() {
+	ticker := time.NewTicker(time.Second)
+
+	for {
+		<-ticker.C
+		if s.AllGuildsReady() {
+			s.processQueuedEvents()
+		}
+	}
+}
+
+func (s *Server) processQueuedEvents() {
+	for {
+		evt, err := s.queue.GetEvent()
+		if err != nil {
+			s.readyLock.Lock()
+			s.processingQueuedEvents = false
+			s.readyLock.Unlock()
+			return
+		}
+
+		s.handleNoSessionEvent(evt)
 	}
 }
 
@@ -261,13 +297,22 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) {
 		return
 	}
 
-	for !srv.AllGuildsReady() {
-		// Wait until all the guilds have loaded their initial set receivied in ready and guild creates
-		// In the future, check each guild individually
-		// And store a queue on disk perhaps, for when discord has downtimes and makes guilds unavailable for extended perios
-		// Then again we wouldnt receive many events for those guilds so we should be able to keep the short queue in memory
-		// HMMMM
+	srv.readyLock.RLock()
+	isReady := srv.AllGuildsReadyNL()
+	processing := srv.processingQueuedEvents
+	srv.readyLock.RUnlock()
+
+	if !isReady {
+		// Not ready, queue the event
+		srv.queue.QueueEvent(evt)
+		return
+	}
+
+	for processing {
 		time.Sleep(time.Second)
+		srv.readyLock.RLock()
+		processing = srv.processingQueuedEvents
+		srv.readyLock.RUnlock()
 	}
 
 	if srv.Debug {
@@ -275,15 +320,25 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) {
 		logrus.Debug("Inc event ", t.Name())
 	}
 
+	srv.handleNoSessionEvent(evt)
+}
+
+func (srv *Server) BotID() string {
+	srv.cache.Lock()
+	defer srv.cache.Unlock()
+	return srv.cache.SelfUser.ID
+}
+
+func (srv *Server) handleNoSessionEvent(evt interface{}) {
 	switch t := evt.(type) {
 	case *discordgo.GuildUpdate:
-		srv.guildUpdate(s, t.Guild)
+		srv.guildUpdate(t.Guild)
 
 	// Members
 	case *discordgo.GuildMemberAdd:
-		srv.updateMember(srv.db, s, t.Member, true)
+		srv.updateMember(srv.db, t.Member, true)
 	case *discordgo.GuildMemberUpdate:
-		srv.updateMember(srv.db, s, t.Member, true)
+		srv.updateMember(srv.db, t.Member, true)
 	case *discordgo.GuildMemberRemove:
 		models.DiscordMembers(srv.db, qm.Where("user_id = ?", t.User.ID), qm.Where("guild_id = ?", t.GuildID)).UpdateAll(models.M{"left_at": time.Now()})
 	// Roles
@@ -309,7 +364,7 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) {
 		}
 	case *discordgo.ChannelDelete:
 		if t.Channel.GuildID != "" {
-			models.DiscordGuildChannels(srv.db, qm.Where("id = ?", t.Channel.ID)).UpdateAll(models.M{"deleted_at": time.Now()})
+			models.DiscordChannels(srv.db, qm.Where("id = ?", t.Channel.ID)).UpdateAll(models.M{"deleted_at": time.Now()})
 		}
 	// Messages
 	case *discordgo.MessageCreate:
@@ -329,7 +384,6 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) {
 	case *discordgo.GuildMembersChunk:
 		srv.guildMembersChunk(t)
 	}
-
 }
 
 func shardClause(guildColumn string, numShards, current int) string {
@@ -356,6 +410,11 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 		_, err := srv.db.Exec("ALTER TABLE discord_members DROP CONSTRAINT discord_members_user_id_fkey")
 		if !srv.handleError(err, "Failed temporarily removing foreign key") {
 			srv.removedFK = true
+		} else if cast, ok := err.(*pq.Error); ok {
+			if cast.Code == "42704" {
+				logrus.Info("Didn't exist, marking fk as removed.")
+				srv.removedFK = true
+			}
 		}
 	}
 	srv.cache.Unlock()
@@ -373,7 +432,7 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 	srv.handleError(err, "Failed marking shard guild roles as deleted")
 
 	// Mark all guild channels as deleted
-	_, err = srv.db.Exec("UPDATE discord_guild_channels SET deleted_at = $1 WHERE deleted_at IS NULL"+sc, time.Now())
+	_, err = srv.db.Exec("UPDATE discord_channels SET deleted_at = $1 WHERE deleted_at IS NULL"+sc, time.Now())
 	srv.handleError(err, "Failed marking shard guild channels as deleted")
 
 	// Clear the voice srvates, as we get a new fresh set in the guild creates
@@ -385,18 +444,18 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 	srv.handleError(err, "Failed marking shard guild members as left")
 
 	var wg sync.WaitGroup
+	srv.readyLock.Lock()
+	srv.processingQueuedEvents = true
 	for _, v := range r.Guilds {
 		parsedGID, err := strconv.ParseInt(v.ID, 10, 64)
 		if srv.handleError(err, "Failed parsing guild id") {
 			return
 		}
 
-		srv.readyLock.Lock()
 		if v.Unavailable {
 			srv.readyGuilds[parsedGID] = false
 			logrus.Println(parsedGID, len(srv.readyGuilds))
 		}
-		srv.readyLock.Unlock()
 
 		if v.Unavailable {
 			srv.db.Exec("UPDATE discord_guilds SET left_at = NULL WHERE id = $1", v.ID)
@@ -409,6 +468,7 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) {
 			}(v)
 		}
 	}
+	srv.readyLock.Unlock()
 
 	wg.Wait()
 
@@ -421,7 +481,7 @@ func (srv *Server) guildMembersChunk(chunk *discordgo.GuildMembersChunk) {
 	started := time.Now()
 	for _, v := range chunk.Members {
 		v.GuildID = chunk.GuildID
-		srv.updateMember(srv.db, nil, v, true)
+		srv.updateMember(srv.db, v, true)
 	}
 	logrus.Debug("Updated ", len(chunk.Members), " in ", time.Since(started))
 
@@ -464,8 +524,8 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 		}(parsedGID)
 	}
 
-	logrus.Debug("GC! ", g.Name)
-	srv.guildUpdate(session, g)
+	logrus.Debug("GC! ", g.Name, " ID: ", g.ID, "PID: ", parsedGID)
+	srv.guildUpdate(g)
 
 	logrus.Debug(g.ID, ": ", len(g.Roles))
 	// Update all roles
@@ -535,7 +595,7 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 	// Update all the members and users
 	for _, v := range g.Members {
 		// tx.Exec("SAVEPOINT sp")
-		err = srv.updateMember(tx, session, v, false)
+		err = srv.updateMember(tx, v, false)
 		if srv.handleError(err, "Failed updating member") {
 			// tx.Exec("ROLLBACK TO SAVEPOINT sp")
 		}
@@ -558,10 +618,10 @@ func (srv *Server) guildRemove(g *discordgo.Guild) {
 	models.DiscordVoiceStates(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
 	models.DiscordMembers(srv.db, qm.Where("id = ?", g.ID)).DeleteAll()
 	models.DiscordGuildRoles(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
-	models.DiscordGuildChannels(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
+	models.DiscordChannels(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
 }
 
-func (srv *Server) guildUpdate(session *discordgo.Session, g *discordgo.Guild) {
+func (srv *Server) guildUpdate(g *discordgo.Guild) {
 	parsedId, err := strconv.ParseInt(g.ID, 10, 64)
 	if err != nil {
 		logrus.Printf("%#v\n", g)
@@ -672,7 +732,7 @@ func (s *Server) presenceUpdate(exec boil.Executor, p *discordgo.Presence) error
 	return nil
 }
 
-func (s *Server) updateMember(exec boil.Executor, session *discordgo.Session, member *discordgo.Member, updtUser bool) error {
+func (s *Server) updateMember(exec boil.Executor, member *discordgo.Member, updtUser bool) error {
 	// Update roles
 	if updtUser {
 		err := s.updateUser(exec, member.User)
@@ -751,9 +811,9 @@ func (s *Server) updateGuildChannel(channel *discordgo.Channel) {
 		lastMessageID, _ = strconv.ParseInt(channel.LastMessageID, 10, 64)
 	}
 
-	model := &models.DiscordGuildChannel{
+	model := &models.DiscordChannel{
 		ID:      parsedChannelId,
-		GuildID: parsedGuildID,
+		GuildID: null.Int64From(parsedGuildID),
 
 		Name:          channel.Name,
 		Topic:         channel.Topic,
@@ -829,9 +889,9 @@ func (s *Server) updatePrivateChannel(channel *discordgo.Channel) {
 		lastMessageID, _ = strconv.ParseInt(channel.LastMessageID, 10, 64)
 	}
 
-	model := &models.DiscordPrivateChannel{
+	model := &models.DiscordChannel{
 		ID:          parsedChannelId,
-		RecipientID: parsedRecipient,
+		RecipientID: null.Int64From(parsedRecipient),
 
 		Name:          channel.Name,
 		Topic:         channel.Topic,

@@ -34,6 +34,7 @@ type DiscordVoiceState struct {
 
 // discordVoiceStateR is where relationships are stored.
 type discordVoiceStateR struct {
+	Channel *DiscordChannel
 }
 
 // discordVoiceStateL is where Load methods for each relationship are stored.
@@ -173,6 +174,167 @@ func (q discordVoiceStateQuery) Exists() (bool, error) {
 	}
 
 	return count > 0, nil
+}
+
+// ChannelG pointed to by the foreign key.
+func (o *DiscordVoiceState) ChannelG(mods ...qm.QueryMod) discordChannelQuery {
+	return o.Channel(boil.GetDB(), mods...)
+}
+
+// Channel pointed to by the foreign key.
+func (o *DiscordVoiceState) Channel(exec boil.Executor, mods ...qm.QueryMod) discordChannelQuery {
+	queryMods := []qm.QueryMod{
+		qm.Where("id=?", o.ChannelID),
+	}
+
+	queryMods = append(queryMods, mods...)
+
+	query := DiscordChannels(exec, queryMods...)
+	queries.SetFrom(query.Query, "\"discord_channels\"")
+
+	return query
+}
+
+// LoadChannel allows an eager lookup of values, cached into the
+// loaded structs of the objects.
+func (discordVoiceStateL) LoadChannel(e boil.Executor, singular bool, maybeDiscordVoiceState interface{}) error {
+	var slice []*DiscordVoiceState
+	var object *DiscordVoiceState
+
+	count := 1
+	if singular {
+		object = maybeDiscordVoiceState.(*DiscordVoiceState)
+	} else {
+		slice = *maybeDiscordVoiceState.(*DiscordVoiceStateSlice)
+		count = len(slice)
+	}
+
+	args := make([]interface{}, count)
+	if singular {
+		if object.R == nil {
+			object.R = &discordVoiceStateR{}
+		}
+		args[0] = object.ChannelID
+	} else {
+		for i, obj := range slice {
+			if obj.R == nil {
+				obj.R = &discordVoiceStateR{}
+			}
+			args[i] = obj.ChannelID
+		}
+	}
+
+	query := fmt.Sprintf(
+		"select * from \"discord_channels\" where \"id\" in (%s)",
+		strmangle.Placeholders(dialect.IndexPlaceholders, count, 1, 1),
+	)
+
+	if boil.DebugMode {
+		fmt.Fprintf(boil.DebugWriter, "%s\n%v\n", query, args)
+	}
+
+	results, err := e.Query(query, args...)
+	if err != nil {
+		return errors.Wrap(err, "failed to eager load DiscordChannel")
+	}
+	defer results.Close()
+
+	var resultSlice []*DiscordChannel
+	if err = queries.Bind(results, &resultSlice); err != nil {
+		return errors.Wrap(err, "failed to bind eager loaded slice DiscordChannel")
+	}
+
+	if singular && len(resultSlice) != 0 {
+		object.R.Channel = resultSlice[0]
+		return nil
+	}
+
+	for _, foreign := range resultSlice {
+		for _, local := range slice {
+			if local.ChannelID == foreign.ID {
+				local.R.Channel = foreign
+				break
+			}
+		}
+	}
+
+	return nil
+}
+
+// SetChannelG of the discord_voice_state to the related item.
+// Sets o.R.Channel to related.
+// Adds o to related.R.ChannelDiscordVoiceStates.
+// Uses the global database handle.
+func (o *DiscordVoiceState) SetChannelG(insert bool, related *DiscordChannel) error {
+	return o.SetChannel(boil.GetDB(), insert, related)
+}
+
+// SetChannelP of the discord_voice_state to the related item.
+// Sets o.R.Channel to related.
+// Adds o to related.R.ChannelDiscordVoiceStates.
+// Panics on error.
+func (o *DiscordVoiceState) SetChannelP(exec boil.Executor, insert bool, related *DiscordChannel) {
+	if err := o.SetChannel(exec, insert, related); err != nil {
+		panic(boil.WrapErr(err))
+	}
+}
+
+// SetChannelGP of the discord_voice_state to the related item.
+// Sets o.R.Channel to related.
+// Adds o to related.R.ChannelDiscordVoiceStates.
+// Uses the global database handle and panics on error.
+func (o *DiscordVoiceState) SetChannelGP(insert bool, related *DiscordChannel) {
+	if err := o.SetChannel(boil.GetDB(), insert, related); err != nil {
+		panic(boil.WrapErr(err))
+	}
+}
+
+// SetChannel of the discord_voice_state to the related item.
+// Sets o.R.Channel to related.
+// Adds o to related.R.ChannelDiscordVoiceStates.
+func (o *DiscordVoiceState) SetChannel(exec boil.Executor, insert bool, related *DiscordChannel) error {
+	var err error
+	if insert {
+		if err = related.Insert(exec); err != nil {
+			return errors.Wrap(err, "failed to insert into foreign table")
+		}
+	}
+
+	updateQuery := fmt.Sprintf(
+		"UPDATE \"discord_voice_states\" SET %s WHERE %s",
+		strmangle.SetParamNames("\"", "\"", 1, []string{"channel_id"}),
+		strmangle.WhereClause("\"", "\"", 2, discordVoiceStatePrimaryKeyColumns),
+	)
+	values := []interface{}{related.ID, o.UserID, o.GuildID}
+
+	if boil.DebugMode {
+		fmt.Fprintln(boil.DebugWriter, updateQuery)
+		fmt.Fprintln(boil.DebugWriter, values)
+	}
+
+	if _, err = exec.Exec(updateQuery, values...); err != nil {
+		return errors.Wrap(err, "failed to update local table")
+	}
+
+	o.ChannelID = related.ID
+
+	if o.R == nil {
+		o.R = &discordVoiceStateR{
+			Channel: related,
+		}
+	} else {
+		o.R.Channel = related
+	}
+
+	if related.R == nil {
+		related.R = &discordChannelR{
+			ChannelDiscordVoiceStates: DiscordVoiceStateSlice{o},
+		}
+	} else {
+		related.R.ChannelDiscordVoiceStates = append(related.R.ChannelDiscordVoiceStates, o)
+	}
+
+	return nil
 }
 
 // DiscordVoiceStatesG retrieves all records.

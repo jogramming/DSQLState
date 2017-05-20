@@ -36,8 +36,7 @@ type DiscordMember struct {
 
 // discordMemberR is where relationships are stored.
 type discordMemberR struct {
-	User  *DiscordUser
-	Guild *DiscordGuild
+	User *DiscordUser
 }
 
 // discordMemberL is where Load methods for each relationship are stored.
@@ -198,25 +197,6 @@ func (o *DiscordMember) User(exec boil.Executor, mods ...qm.QueryMod) discordUse
 	return query
 }
 
-// GuildG pointed to by the foreign key.
-func (o *DiscordMember) GuildG(mods ...qm.QueryMod) discordGuildQuery {
-	return o.Guild(boil.GetDB(), mods...)
-}
-
-// Guild pointed to by the foreign key.
-func (o *DiscordMember) Guild(exec boil.Executor, mods ...qm.QueryMod) discordGuildQuery {
-	queryMods := []qm.QueryMod{
-		qm.Where("id=?", o.GuildID),
-	}
-
-	queryMods = append(queryMods, mods...)
-
-	query := DiscordGuilds(exec, queryMods...)
-	queries.SetFrom(query.Query, "\"discord_guilds\"")
-
-	return query
-}
-
 // LoadUser allows an eager lookup of values, cached into the
 // loaded structs of the objects.
 func (discordMemberL) LoadUser(e boil.Executor, singular bool, maybeDiscordMember interface{}) error {
@@ -275,72 +255,6 @@ func (discordMemberL) LoadUser(e boil.Executor, singular bool, maybeDiscordMembe
 		for _, local := range slice {
 			if local.UserID == foreign.ID {
 				local.R.User = foreign
-				break
-			}
-		}
-	}
-
-	return nil
-}
-
-// LoadGuild allows an eager lookup of values, cached into the
-// loaded structs of the objects.
-func (discordMemberL) LoadGuild(e boil.Executor, singular bool, maybeDiscordMember interface{}) error {
-	var slice []*DiscordMember
-	var object *DiscordMember
-
-	count := 1
-	if singular {
-		object = maybeDiscordMember.(*DiscordMember)
-	} else {
-		slice = *maybeDiscordMember.(*DiscordMemberSlice)
-		count = len(slice)
-	}
-
-	args := make([]interface{}, count)
-	if singular {
-		if object.R == nil {
-			object.R = &discordMemberR{}
-		}
-		args[0] = object.GuildID
-	} else {
-		for i, obj := range slice {
-			if obj.R == nil {
-				obj.R = &discordMemberR{}
-			}
-			args[i] = obj.GuildID
-		}
-	}
-
-	query := fmt.Sprintf(
-		"select * from \"discord_guilds\" where \"id\" in (%s)",
-		strmangle.Placeholders(dialect.IndexPlaceholders, count, 1, 1),
-	)
-
-	if boil.DebugMode {
-		fmt.Fprintf(boil.DebugWriter, "%s\n%v\n", query, args)
-	}
-
-	results, err := e.Query(query, args...)
-	if err != nil {
-		return errors.Wrap(err, "failed to eager load DiscordGuild")
-	}
-	defer results.Close()
-
-	var resultSlice []*DiscordGuild
-	if err = queries.Bind(results, &resultSlice); err != nil {
-		return errors.Wrap(err, "failed to bind eager loaded slice DiscordGuild")
-	}
-
-	if singular && len(resultSlice) != 0 {
-		object.R.Guild = resultSlice[0]
-		return nil
-	}
-
-	for _, foreign := range resultSlice {
-		for _, local := range slice {
-			if local.GuildID == foreign.ID {
-				local.R.Guild = foreign
 				break
 			}
 		}
@@ -420,82 +334,6 @@ func (o *DiscordMember) SetUser(exec boil.Executor, insert bool, related *Discor
 		}
 	} else {
 		related.R.UserDiscordMembers = append(related.R.UserDiscordMembers, o)
-	}
-
-	return nil
-}
-
-// SetGuildG of the discord_member to the related item.
-// Sets o.R.Guild to related.
-// Adds o to related.R.GuildDiscordMembers.
-// Uses the global database handle.
-func (o *DiscordMember) SetGuildG(insert bool, related *DiscordGuild) error {
-	return o.SetGuild(boil.GetDB(), insert, related)
-}
-
-// SetGuildP of the discord_member to the related item.
-// Sets o.R.Guild to related.
-// Adds o to related.R.GuildDiscordMembers.
-// Panics on error.
-func (o *DiscordMember) SetGuildP(exec boil.Executor, insert bool, related *DiscordGuild) {
-	if err := o.SetGuild(exec, insert, related); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// SetGuildGP of the discord_member to the related item.
-// Sets o.R.Guild to related.
-// Adds o to related.R.GuildDiscordMembers.
-// Uses the global database handle and panics on error.
-func (o *DiscordMember) SetGuildGP(insert bool, related *DiscordGuild) {
-	if err := o.SetGuild(boil.GetDB(), insert, related); err != nil {
-		panic(boil.WrapErr(err))
-	}
-}
-
-// SetGuild of the discord_member to the related item.
-// Sets o.R.Guild to related.
-// Adds o to related.R.GuildDiscordMembers.
-func (o *DiscordMember) SetGuild(exec boil.Executor, insert bool, related *DiscordGuild) error {
-	var err error
-	if insert {
-		if err = related.Insert(exec); err != nil {
-			return errors.Wrap(err, "failed to insert into foreign table")
-		}
-	}
-
-	updateQuery := fmt.Sprintf(
-		"UPDATE \"discord_members\" SET %s WHERE %s",
-		strmangle.SetParamNames("\"", "\"", 1, []string{"guild_id"}),
-		strmangle.WhereClause("\"", "\"", 2, discordMemberPrimaryKeyColumns),
-	)
-	values := []interface{}{related.ID, o.UserID, o.GuildID}
-
-	if boil.DebugMode {
-		fmt.Fprintln(boil.DebugWriter, updateQuery)
-		fmt.Fprintln(boil.DebugWriter, values)
-	}
-
-	if _, err = exec.Exec(updateQuery, values...); err != nil {
-		return errors.Wrap(err, "failed to update local table")
-	}
-
-	o.GuildID = related.ID
-
-	if o.R == nil {
-		o.R = &discordMemberR{
-			Guild: related,
-		}
-	} else {
-		o.R.Guild = related
-	}
-
-	if related.R == nil {
-		related.R = &discordGuildR{
-			GuildDiscordMembers: DiscordMemberSlice{o},
-		}
-	} else {
-		related.R.GuildDiscordMembers = append(related.R.GuildDiscordMembers, o)
 	}
 
 	return nil

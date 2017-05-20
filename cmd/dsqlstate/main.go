@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 	"github.com/Sirupsen/logrus"
-	"github.com/jonas747/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/jonas747/dsqlstate"
 	"net/http"
 	_ "net/http/pprof"
@@ -19,7 +19,7 @@ var (
 )
 
 func main() {
-	logrus.Info("Starting... v0.0.3")
+	logrus.Info("Starting... v0.0.6")
 	logrus.SetLevel(logrus.DebugLevel)
 
 	if doTrace {
@@ -52,7 +52,10 @@ func main() {
 	}
 	db.SetMaxOpenConns(10)
 
-	server = dsqlstate.NewServer(db, 0)
+	server, err = dsqlstate.NewServer(db, 0)
+	if err != nil {
+		logrus.WithError(err).Fatal("Failed creating dsqlstate")
+	}
 	// server.Debug = true
 	server.LoadAllMembers = true
 	server.RunWorkers(0)
@@ -83,7 +86,9 @@ func main() {
 
 func printGuildCounts() {
 	b, n := server.NumNotReady()
-	logrus.Info("Shards ready: ", b, " guilds not ready: ", n, " GO: ", runtime.NumGoroutine())
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	logrus.Info("Shards ready: ", b, " guilds not ready: ", n, " GO: ", runtime.NumGoroutine(), ", alloc: ", m.Alloc/1000000)
 	// n, err := state.JoinedGuildsCount()
 	// logrus.Info("Guilds:", n, err)
 }
