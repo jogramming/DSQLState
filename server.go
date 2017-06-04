@@ -568,6 +568,7 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 			if p, ok := toUpdatePresences[v.User.ID]; ok {
 				p.User = v.User
 			} else {
+
 				toUpdatePresences[v.User.ID] = &discordgo.Presence{User: v.User}
 			}
 		}
@@ -688,7 +689,12 @@ func (s *Server) updateUser(exec boil.Executor, user *discordgo.User) error {
 		Avatar:        user.Avatar,
 	}
 
-	err = model.Upsert(exec, true, []string{"id"}, []string{"username", "discriminator", "bot", "avatar"})
+	toUpdate := []string{}
+	if user.Username != "" {
+		toUpdate = []string{"username", "discriminator", "avatar"}
+	}
+
+	err = model.Upsert(exec, true, []string{"id"}, toUpdate)
 	return err
 }
 
