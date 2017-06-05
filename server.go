@@ -550,10 +550,10 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) {
 			}
 		}
 		for _, v := range g.Members {
-			if _, ok := srv.loadedUsers[v.User.ID]; !ok {
-				if p, ok := toUpdatePresences[v.User.ID]; ok {
-					p.User = v.User
-				} else {
+			if p, ok := toUpdatePresences[v.User.ID]; ok {
+				p.User = v.User
+			} else {
+				if _, ok := srv.loadedUsers[v.User.ID]; !ok {
 					toUpdatePresences[v.User.ID] = &discordgo.Presence{User: v.User}
 					srv.loadedUsers[v.User.ID] = true
 				}
@@ -699,9 +699,6 @@ func (s *Server) updateUser(exec boil.Executor, user *discordgo.User) error {
 }
 
 func (s *Server) presenceUpdate(exec boil.Executor, p *discordgo.Presence) error {
-	// if p.User.Username == "" && !s.UpdateGameStatus {
-	// 	return
-	// }
 
 	parsedId, err := strconv.ParseInt(p.User.ID, 10, 64)
 	panicErr(err)
@@ -711,8 +708,12 @@ func (s *Server) presenceUpdate(exec boil.Executor, p *discordgo.Presence) error
 		Status: string(p.Status),
 	}
 
-	columns := []string{"game_name", "game_type", "game_url"}
+	// These columns in 90% sure are available at all times
+	columns := make([]string, 0, 12)
+	columns = append(columns, "game_name", "game_type", "game_url")
+
 	if p.User.Username != "" {
+		// Update the user columns if they are here
 		model.Username = p.User.Username
 		model.Discriminator = p.User.Discriminator
 		model.Avatar = p.User.Avatar
@@ -1004,6 +1005,8 @@ func (s *Server) messageCreate(m *discordgo.Message) {
 // 5. update the revision model
 // 6. update the message model
 // 7. Commit if all went well
+//
+// I need to do this in a move efficient way
 func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.DiscordMessage, m *discordgo.Message, retry bool) {
 	parsedMID, _ := strconv.ParseInt(m.ID, 10, 64)
 
