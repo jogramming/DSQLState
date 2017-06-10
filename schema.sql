@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS discord_users (
 	game_url text
 );
 
-CREATE INDEX ON discord_users(lower(username));
+CREATE INDEX IF NOT EXISTS discord_users_lower_idx ON discord_users(lower(username));
 
 DROP TABLE IF EXISTS discord_guilds CASCADE;
 CREATE TABLE IF NOT EXISTS discord_guilds (
@@ -69,8 +69,8 @@ CREATE TABLE IF NOT EXISTS discord_channels (
 	bitrate int NOT NULL
 );
 
-CREATE INDEX ON discord_channels(guild_id);
-CREATE INDEX ON discord_channels(recipient_id);
+CREATE INDEX IF NOT EXISTS discord_channels_guild_idx ON discord_channels(guild_id);
+CREATE INDEX IF NOT EXISTS discord_channels_recipient_idx ON discord_channels(recipient_id);
 
 DROP TABLE IF EXISTS discord_channel_overwrites CASCADE;
 CREATE TABLE IF NOT EXISTS discord_channel_overwrites (
@@ -84,8 +84,8 @@ CREATE TABLE IF NOT EXISTS discord_channel_overwrites (
 	PRIMARY KEY(channel_id, id)
 );
 
-CREATE INDEX ON discord_channel_overwrites(channel_id);
-CREATE INDEX ON discord_channel_overwrites(id);
+CREATE INDEX IF NOT EXISTS discord_channel_overwrites_channel_idx ON discord_channel_overwrites(channel_id);
+CREATE INDEX IF NOT EXISTS discord_channel_overwrites_idx ON discord_channel_overwrites(id);
 
 DROP TABLE IF EXISTS discord_members;
 
@@ -105,8 +105,8 @@ CREATE TABLE IF NOT EXISTS discord_members (
 	PRIMARY KEY(user_id, guild_id)
 );
 
-CREATE INDEX ON discord_members(user_id);
-CREATE INDEX ON discord_members(guild_id);
+CREATE INDEX IF NOT EXISTS discord_members_user_idx ON discord_members(user_id);
+CREATE INDEX IF NOT EXISTS discord_members_guild_idx ON discord_members(guild_id);
 
 DROP TABLE IF EXISTS discord_voice_states;
 CREATE TABLE IF NOT EXISTS discord_voice_states (
@@ -124,8 +124,8 @@ CREATE TABLE IF NOT EXISTS discord_voice_states (
 	PRIMARY KEY(guild_id, user_id)
 );
 
-CREATE INDEX ON discord_voice_states(guild_id);
-CREATE INDEX ON discord_voice_states(channel_id);
+CREATE INDEX IF NOT EXISTS discord_voice_states_guild_idx ON discord_voice_states(guild_id);
+CREATE INDEX IF NOT EXISTS discord_voice_states_channel_idx ON discord_voice_states(channel_id);
 
 DROP TABLE IF EXISTS discord_messages CASCADE;
 CREATE TABLE IF NOT EXISTS discord_messages (
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS discord_messages (
 	embeds bigint[] NOT NULL
 );
 
-CREATE INDEX ON discord_messages(channel_id);
+CREATE INDEX IF NOT EXISTS discord_messages_channel_idx ON discord_messages(channel_id);
 
 DROP TABLE IF EXISTS discord_message_revisions CASCADE;
 CREATE TABLE IF NOT EXISTS discord_message_revisions (
@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS discord_message_revisions (
 	PRIMARY KEY(message_id, revision_num)
 );
 
-CREATE INDEX ON discord_message_revisions(message_id);
+CREATE INDEX IF NOT EXISTS discord_message_revisions_message_idx ON discord_message_revisions(message_id);
 
 DROP TABLE IF EXISTS discord_message_embeds;
 CREATE TABLE IF NOT EXISTS discord_message_embeds (
@@ -215,8 +215,8 @@ CREATE TABLE IF NOT EXISTS discord_message_embeds (
 	author_proxy_icon_url text
 );
 
-CREATE INDEX ON discord_message_embeds(message_id);
-
+CREATE INDEX IF NOT EXISTS discord_message_embeds_message_idx ON discord_message_embeds(message_id);
+ 
 DROP TABLE IF EXISTS discord_change_logs;
 CREATE TABLE IF NOT EXISTS discord_change_logs (
 	id bigserial PRIMARY KEY,
