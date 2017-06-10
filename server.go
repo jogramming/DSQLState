@@ -108,13 +108,10 @@ func NewServer(db *sql.DB, numShards int) (*Server, error) {
 }
 
 // RunWorkers starts the shard workers, this is required if you want all members loaded into the db
-func (s *Server) RunWorkers(numShards int) {
-	if numShards < 1 {
-		numShards = 1
-	}
+func (s *Server) RunWorkers() {
 
-	s.shardWorkers = make([]*shardWorker, numShards)
-	for i := 0; i < numShards; i++ {
+	s.shardWorkers = make([]*shardWorker, len(s.readyShards))
+	for i := 0; i < len(s.shardWorkers); i++ {
 		s.shardWorkers[i] = &shardWorker{
 			GCCHan:   make(chan *GuildCreateEvt),
 			StopChan: make(chan bool),
@@ -220,7 +217,7 @@ func (s *Server) handleError(err error, message string) bool {
 	if s.OnError != nil {
 		s.OnError(errors.Wrap(err, message))
 	} else {
-		log.Println("[DSQLSTATE] error: " + err.Error())
+		log.Println("[DSQLSTATE] error: " + message + ": " + err.Error())
 	}
 
 	return true
@@ -390,8 +387,7 @@ func shardClauseAnd(guildColumn string, numShards, current int) string {
 	if numShards < 2 {
 		return ""
 	}
-
-	return " AnD " + shardClause(guildColumn, numShards, current)
+	return " AND " + shardClause(guildColumn, numShards, current)
 }
 
 func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) error {
@@ -428,8 +424,12 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) error {
 	_, err = srv.db.Exec("UPDATE discord_channels SET deleted_at = $1 WHERE deleted_at IS NULL"+sc, time.Now())
 	srv.handleError(err, "Failed marking shard guild channels as deleted")
 
+	vcClause := shardClause("guild_id", s.ShardCount, s.ShardID)
+	if vcClause != "" {
+		vcClause = " WHERE " + vcClause
+	}
 	// Clear the voice srvates, as we get a new fresh set in the guild creates
-	_, err = srv.db.Exec("DELETE FROM discord_voice_states" + sc)
+	_, err = srv.db.Exec("DELETE FROM discord_voice_states" + vcClause)
 	srv.handleError(err, "Failed marking shard guild voice_states as deleted")
 
 	// Clear members, as people can have left in the meantime, it is now unclear who is srvill on the server
@@ -470,6 +470,7 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) error {
 		}
 	}
 
+	log.Println(s.ShardID)
 	srv.readyLock.Lock()
 	srv.readyShards[s.ShardID] = true
 	srv.readyLock.Unlock()

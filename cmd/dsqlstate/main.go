@@ -87,10 +87,17 @@ func main() {
 
 	sm.OnEvent = func(e *dshardmanager.Event) {
 		if e.Type != dshardmanager.EventError {
+			sm.LogConnectionEventStd(e)
 			return
 		}
 
 		logrus.WithError(errors.New(e.Msg)).Error("Shard manager reported an error")
+	}
+
+	numShard, err := sm.GetRecommendedCount()
+	if err != nil {
+		logrus.WithError(err).Fatal("Failed retrieving reccomended shard count")
+		return
 	}
 
 	db, err := sql.Open("postgres", fmt.Sprintf(`dbname=%s host=%s user=%s password=%s sslmode=%s`, FlagDB, FlagHost, FlagUser, FlagPW, FlagSSLMode))
@@ -110,21 +117,22 @@ func main() {
 	}
 	logrus.Info("Initilaized db schema")
 
-	server, err = dsqlstate.NewServer(db, 0)
+	server, err = dsqlstate.NewServer(db, numShard)
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed creating dsqlstate")
 		return
 	}
 
 	server.LoadAllMembers = true
-	server.RunWorkers(0)
+	server.RunWorkers()
 
-	sm.AddHandler(handleEvent)
 	err = sm.Start()
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed starting shard manager")
 		return
 	}
+
+	sm.AddHandler(handleEvent)
 
 	ticker := time.NewTicker(time.Second)
 
