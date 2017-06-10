@@ -2,11 +2,14 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
-	"github.com/Sirupsen/logrus"
 	"github.com/bwmarrin/discordgo"
+	"github.com/jonas747/dshardmanager"
 	"github.com/jonas747/dsqlstate"
+	"github.com/rifflock/lfshook"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -26,16 +29,18 @@ var (
 	FlagPW             string
 	FlagSSLMode        string
 	FlagMaxConnections int
+	FlagLogErrors      string
 )
 
 func main() {
-	flag.StringVar(&FlagToken, "", "", "The discord token to use, will also check the env variable DG_TOKEN")
+	flag.StringVar(&FlagToken, "t", "", "The discord token to use, will also check the env variable DG_TOKEN")
 	flag.StringVar(&FlagDB, "db", "dstate", "The database to use")
 	flag.StringVar(&FlagHost, "host", "localhost", "The host to use when connecting to the db")
 	flag.StringVar(&FlagUser, "user", "postgres", "The user to use when connecting to the db")
 	flag.StringVar(&FlagPW, "pw", "123", "The password to use when connecting to the datbase")
 	flag.StringVar(&FlagSSLMode, "sslmode", "disable", "The sslmode to use when connecting to the datbase")
 	flag.IntVar(&FlagMaxConnections, "maxconn", 10, "Max number of connections to the database")
+	flag.StringVar(&FlagLogErrors, "errors", "dsqlstate_errors.log", "Where to log errors, if empty, they will not be logger to disk")
 	flag.Parse()
 
 	logrus.Info("Starting... v" + dsqlstate.VersionString)
@@ -56,6 +61,13 @@ func main() {
 		}()
 	}
 
+	if FlagLogErrors != "" {
+		logrus.AddHook(lfshook.NewHook(lfshook.PathMap{
+			logrus.ErrorLevel: FlagLogErrors,
+		}))
+		logrus.Info("Added log hook")
+	}
+
 	if FlagToken == "" {
 		FlagToken = os.Getenv("DG_TOKEN")
 		if FlagToken == "" {
@@ -64,13 +76,22 @@ func main() {
 		}
 	}
 
-	session, err := discordgo.New(os.Getenv("DG_TOKEN"))
-	if err != nil {
-		logrus.WithError(err).Fatal("Failed creating session")
+	sm := dshardmanager.New(FlagToken, dshardmanager.OptSessionFunc(func(token string) (*discordgo.Session, error) {
+		session, err := discordgo.New(token)
+		if err != nil {
+			return nil, err
+		}
+		session.StateEnabled = false
+		return session, nil
+	}))
+
+	sm.OnEvent = func(e *dshardmanager.Event) {
+		if e.Type != dshardmanager.EventError {
+			return
+		}
+
+		logrus.WithError(errors.New(e.Msg)).Error("Shard manager reported an error")
 	}
-	session.State = discordgo.NewState()
-	session.StateEnabled = false
-	// session.LogLevel = discordgo.LogDebug
 
 	db, err := sql.Open("postgres", fmt.Sprintf(`dbname=%s host=%s user=%s password=%s sslmode=%s`, FlagDB, FlagHost, FlagUser, FlagPW, FlagSSLMode))
 	if err != nil {
@@ -79,6 +100,7 @@ func main() {
 	}
 
 	db.SetMaxOpenConns(10)
+	logrus.Info("Connected to database")
 
 	// Set up the db
 	_, err = db.Exec(schema)
@@ -86,6 +108,7 @@ func main() {
 		logrus.WithError(err).Fatal("Failed setting up db tables")
 		return
 	}
+	logrus.Info("Initilaized db schema")
 
 	server, err = dsqlstate.NewServer(db, 0)
 	if err != nil {
@@ -93,12 +116,15 @@ func main() {
 		return
 	}
 
-	// server.Debug = true
 	server.LoadAllMembers = true
 	server.RunWorkers(0)
 
-	session.AddHandler(server.HandleEvent)
-	session.Open()
+	sm.AddHandler(handleEvent)
+	err = sm.Start()
+	if err != nil {
+		logrus.WithError(err).Fatal("Failed starting shard manager")
+		return
+	}
 
 	ticker := time.NewTicker(time.Second)
 
@@ -126,6 +152,18 @@ func printGuildCounts() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	logrus.Info("Shards ready: ", b, " guilds not ready: ", n, " GO: ", runtime.NumGoroutine(), ", alloc: ", m.Alloc/1000000)
+}
+
+func handleEvent(session *discordgo.Session, evt interface{}) {
+	if _, ok := evt.(*discordgo.Event); ok {
+		// Do this check beforehand
+		return
+	}
+
+	err := server.HandleEvent(session, evt)
+	if err != nil {
+		logrus.WithError(err).Error("DSQLState encounteredn an error")
+	}
 }
 
 const schema = `
