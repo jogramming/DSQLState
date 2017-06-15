@@ -16,8 +16,6 @@ import (
 	"time"
 )
 
-//go:generate sqlboiler --no-hooks -w "discord_users,discord_guilds,discord_guild_roles,discord_channels,discord_members,discord_channel_overwrites,discord_voice_states,discord_messages,discord_message_revisions,discord_message_embeds,discord_change_logs" postgres
-
 func panicErr(err error) {
 	if err != nil {
 		panic(err)
@@ -311,9 +309,14 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) error {
 	return srv.handleNoSessionEvent(evt)
 }
 
+// BotID is a helper for retrieving the bot's id
 func (srv *Server) BotID() string {
 	srv.cache.Lock()
 	defer srv.cache.Unlock()
+	if srv.cache.SelfUser == nil {
+		return ""
+	}
+
 	return srv.cache.SelfUser.ID
 }
 
@@ -329,7 +332,7 @@ func (srv *Server) handleNoSessionEvent(evt interface{}) error {
 	case *discordgo.GuildMemberUpdate:
 		err = srv.updateMember(srv.db, t.Member, true)
 	case *discordgo.GuildMemberRemove:
-		err = models.DiscordMembers(srv.db, qm.Where("user_id = ?", t.User.ID), qm.Where("guild_id = ?", t.GuildID)).UpdateAll(models.M{"left_at": time.Now()})
+		err = models.DMembers(srv.db, qm.Where("user_id = ?", t.User.ID), qm.Where("guild_id = ?", t.GuildID)).UpdateAll(models.M{"left_at": time.Now()})
 	// Roles
 	case *discordgo.GuildRoleCreate:
 		err = srv.updateRole(t.GuildID, t.Role)
@@ -353,7 +356,7 @@ func (srv *Server) handleNoSessionEvent(evt interface{}) error {
 		}
 	case *discordgo.ChannelDelete:
 		if t.Channel.GuildID != "" {
-			models.DiscordChannels(srv.db, qm.Where("id = ?", t.Channel.ID)).UpdateAll(models.M{"deleted_at": time.Now()})
+			models.DChannels(srv.db, qm.Where("id = ?", t.Channel.ID)).UpdateAll(models.M{"deleted_at": time.Now()})
 		}
 	// Messages
 	case *discordgo.MessageCreate:
@@ -634,10 +637,10 @@ func (srv *Server) guildRemove(g *discordgo.Guild) error {
 	delete(srv.readyGuilds, parsedID)
 	srv.readyLock.Unlock()
 	srv.db.Exec("UPDATE discord_guilds SET left_at = $1 WHERE id = $2", time.Now(), g.ID)
-	models.DiscordVoiceStates(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
-	models.DiscordMembers(srv.db, qm.Where("id = ?", g.ID)).DeleteAll()
-	models.DiscordGuildRoles(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
-	models.DiscordChannels(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
+	models.DVoiceStates(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
+	models.DMembers(srv.db, qm.Where("id = ?", g.ID)).DeleteAll()
+	models.DGuildRoles(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
+	models.DChannels(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
 
 	return nil
 }
@@ -668,7 +671,7 @@ func (srv *Server) guildUpdate(g *discordgo.Guild) error {
 		}
 	}
 
-	model := &models.DiscordGuild{
+	model := &models.DGuild{
 		ID: parsedId,
 
 		OwnerID: ownerID,
@@ -706,7 +709,7 @@ func (s *Server) updateUser(exec boil.Executor, user *discordgo.User) error {
 		return errors.WithMessage(err, "updateUser, ParseID")
 	}
 
-	model := &models.DiscordUser{
+	model := &models.DUser{
 		ID:            parsedId,
 		Username:      user.Username,
 		Discriminator: user.Discriminator,
@@ -730,7 +733,7 @@ func (s *Server) presenceUpdate(exec boil.Executor, p *discordgo.Presence) error
 		return errors.WithMessage(err, "presenceUpdate, ParseID")
 	}
 
-	model := &models.DiscordUser{
+	model := &models.DUser{
 		ID:     parsedId,
 		Status: string(p.Status),
 	}
@@ -783,7 +786,7 @@ func (s *Server) updateMember(exec boil.Executor, member *discordgo.Member, updt
 	}
 
 	joinedParsed, _ := discordgo.Timestamp(member.JoinedAt).Parse()
-	model := &models.DiscordMember{
+	model := &models.DMember{
 		UserID:  parsedMID,
 		GuildID: parsedGID,
 
@@ -814,7 +817,7 @@ func (s *Server) updateRole(guildID string, role *discordgo.Role) error {
 		return errors.WithMessage(err, "updateRole, ParseID")
 	}
 
-	model := &models.DiscordGuildRole{
+	model := &models.DGuildRole{
 		ID:      roleIdParsed,
 		GuildID: parsedGuildID,
 
@@ -852,7 +855,7 @@ func (s *Server) updateGuildChannel(channel *discordgo.Channel) error {
 		lastMessageID, _ = strconv.ParseInt(channel.LastMessageID, 10, 64)
 	}
 
-	model := &models.DiscordChannel{
+	model := &models.DChannel{
 		ID:      parsedChannelId,
 		GuildID: null.Int64From(parsedGuildID),
 
@@ -901,7 +904,7 @@ func (s *Server) updateGuildChannel(channel *discordgo.Channel) error {
 			continue
 		}
 
-		model := models.DiscordChannelOverwrite{
+		model := models.DChannelOverwrite{
 			ID:        parsedID,
 			ChannelID: parsedChannelId,
 			Type:      v.Type,
@@ -941,7 +944,7 @@ func (s *Server) updatePrivateChannel(channel *discordgo.Channel) error {
 		lastMessageID, _ = strconv.ParseInt(channel.LastMessageID, 10, 64)
 	}
 
-	model := &models.DiscordChannel{
+	model := &models.DChannel{
 		ID:          parsedChannelId,
 		RecipientID: null.Int64From(parsedRecipient),
 
@@ -984,7 +987,7 @@ func (s *Server) updateVoiecState(vc *discordgo.VoiceState) error {
 		return errors.New("updateVoiceState, ParseChannleID")
 	}
 
-	model := &models.DiscordVoiceState{
+	model := &models.DVoiceState{
 		UserID:    parsedUser,
 		ChannelID: parsedChannelID,
 		GuildID:   parsedGuildID,
@@ -1021,7 +1024,7 @@ func (s *Server) messageCreate(m *discordgo.Message) error {
 	parsedAuthorID, _ := strconv.ParseInt(m.Author.ID, 10, 64)
 	parsedAuthorDiscrim, _ := strconv.ParseInt(m.Author.Discriminator, 10, 32)
 
-	model := &models.DiscordMessage{
+	model := &models.DMessage{
 		ID:        parsedMID,
 		ChannelID: parsedCID,
 		Timestamp: parsedTimeStamp,
@@ -1059,7 +1062,7 @@ func (s *Server) messageCreate(m *discordgo.Message) error {
 // 7. Commit if all went well
 //
 // I need to do this in a move efficient way
-func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.DiscordMessage, m *discordgo.Message, retry bool) error {
+func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.DMessage, m *discordgo.Message, retry bool) error {
 	parsedMID, _ := strconv.ParseInt(m.ID, 10, 64)
 
 	if transaction == nil {
@@ -1069,7 +1072,7 @@ func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.Discord
 			return errors.WithMessage(err, "messageUpdate, tx begin")
 		}
 
-		messageModel, err = models.DiscordMessages(transaction, qm.Where("id = ?", parsedMID), qm.For("UPDATE")).One()
+		messageModel, err = models.DMessages(transaction, qm.Where("id = ?", parsedMID), qm.For("UPDATE")).One()
 		if err == sql.ErrNoRows && retry {
 			// Try again in a second in case of a fast embed update, or something like that
 			transaction.Rollback()
@@ -1083,13 +1086,13 @@ func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.Discord
 		}
 	}
 
-	num, err := models.DiscordMessageRevisions(transaction, qm.Where("message_id = ?", parsedMID)).Count()
+	num, err := models.DMessageRevisions(transaction, qm.Where("message_id = ?", parsedMID)).Count()
 	if err != nil {
 		transaction.Rollback()
 		return errors.WithMessage(err, "messageUpdate, count revisions")
 	}
 
-	revisionModel := &models.DiscordMessageRevision{
+	revisionModel := &models.DMessageRevision{
 		MessageID:    parsedMID,
 		RevisionNum:  int(num),
 		Content:      m.Content,
@@ -1154,9 +1157,9 @@ func (s *Server) messageUpdate(transaction *sql.Tx, messageModel *models.Discord
 	return errors.WithMessage(transaction.Commit(), "updateMessage, commit")
 }
 
-func createEmbedModel(embed *discordgo.MessageEmbed) *models.DiscordMessageEmbed {
+func createEmbedModel(embed *discordgo.MessageEmbed) *models.DMessageEmbed {
 	// And here the long ass journy of creating an embed starts
-	model := &models.DiscordMessageEmbed{
+	model := &models.DMessageEmbed{
 		URL:         embed.URL,
 		Type:        embed.Type,
 		Title:       embed.Title,
@@ -1220,6 +1223,6 @@ func createEmbedModel(embed *discordgo.MessageEmbed) *models.DiscordMessageEmbed
 }
 
 func (s *Server) messageDelete(m *discordgo.Message) error {
-	err := models.DiscordMessages(s.db, qm.Where("id = ?", m.ID)).UpdateAll(models.M{"deleted_at": time.Now()})
+	err := models.DMessages(s.db, qm.Where("id = ?", m.ID)).UpdateAll(models.M{"deleted_at": time.Now()})
 	return errors.WithMessage(err, "messageDelete")
 }

@@ -18,11 +18,12 @@ import (
 	"gopkg.in/nullbio/null.v6"
 )
 
-// DiscordMember is an object representing the database table.
-type DiscordMember struct {
+// DMember is an object representing the database table.
+type DMember struct {
 	UserID    int64            `boil:"user_id" json:"user_id" toml:"user_id" yaml:"user_id"`
 	GuildID   int64            `boil:"guild_id" json:"guild_id" toml:"guild_id" yaml:"guild_id"`
 	CreatedAt time.Time        `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
+	Synced    bool             `boil:"synced" json:"synced" toml:"synced" yaml:"synced"`
 	LeftAt    null.Time        `boil:"left_at" json:"left_at,omitempty" toml:"left_at" yaml:"left_at,omitempty"`
 	JoinedAt  time.Time        `boil:"joined_at" json:"joined_at" toml:"joined_at" yaml:"joined_at"`
 	Nick      string           `boil:"nick" json:"nick" toml:"nick" yaml:"nick"`
@@ -30,46 +31,46 @@ type DiscordMember struct {
 	Mute      bool             `boil:"mute" json:"mute" toml:"mute" yaml:"mute"`
 	Roles     types.Int64Array `boil:"roles" json:"roles" toml:"roles" yaml:"roles"`
 
-	R *discordMemberR `boil:"-" json:"-" toml:"-" yaml:"-"`
-	L discordMemberL  `boil:"-" json:"-" toml:"-" yaml:"-"`
+	R *dMemberR `boil:"-" json:"-" toml:"-" yaml:"-"`
+	L dMemberL  `boil:"-" json:"-" toml:"-" yaml:"-"`
 }
 
-// discordMemberR is where relationships are stored.
-type discordMemberR struct {
-	User *DiscordUser
+// dMemberR is where relationships are stored.
+type dMemberR struct {
+	User *DUser
 }
 
-// discordMemberL is where Load methods for each relationship are stored.
-type discordMemberL struct{}
+// dMemberL is where Load methods for each relationship are stored.
+type dMemberL struct{}
 
 var (
-	discordMemberColumns               = []string{"user_id", "guild_id", "created_at", "left_at", "joined_at", "nick", "deaf", "mute", "roles"}
-	discordMemberColumnsWithoutDefault = []string{"user_id", "guild_id", "created_at", "left_at", "joined_at", "nick", "deaf", "mute", "roles"}
-	discordMemberColumnsWithDefault    = []string{}
-	discordMemberPrimaryKeyColumns     = []string{"user_id", "guild_id"}
+	dMemberColumns               = []string{"user_id", "guild_id", "created_at", "synced", "left_at", "joined_at", "nick", "deaf", "mute", "roles"}
+	dMemberColumnsWithoutDefault = []string{"user_id", "guild_id", "created_at", "synced", "left_at", "joined_at", "nick", "deaf", "mute", "roles"}
+	dMemberColumnsWithDefault    = []string{}
+	dMemberPrimaryKeyColumns     = []string{"user_id", "guild_id"}
 )
 
 type (
-	// DiscordMemberSlice is an alias for a slice of pointers to DiscordMember.
-	// This should generally be used opposed to []DiscordMember.
-	DiscordMemberSlice []*DiscordMember
+	// DMemberSlice is an alias for a slice of pointers to DMember.
+	// This should generally be used opposed to []DMember.
+	DMemberSlice []*DMember
 
-	discordMemberQuery struct {
+	dMemberQuery struct {
 		*queries.Query
 	}
 )
 
 // Cache for insert, update and upsert
 var (
-	discordMemberType                 = reflect.TypeOf(&DiscordMember{})
-	discordMemberMapping              = queries.MakeStructMapping(discordMemberType)
-	discordMemberPrimaryKeyMapping, _ = queries.BindMapping(discordMemberType, discordMemberMapping, discordMemberPrimaryKeyColumns)
-	discordMemberInsertCacheMut       sync.RWMutex
-	discordMemberInsertCache          = make(map[string]insertCache)
-	discordMemberUpdateCacheMut       sync.RWMutex
-	discordMemberUpdateCache          = make(map[string]updateCache)
-	discordMemberUpsertCacheMut       sync.RWMutex
-	discordMemberUpsertCache          = make(map[string]insertCache)
+	dMemberType                 = reflect.TypeOf(&DMember{})
+	dMemberMapping              = queries.MakeStructMapping(dMemberType)
+	dMemberPrimaryKeyMapping, _ = queries.BindMapping(dMemberType, dMemberMapping, dMemberPrimaryKeyColumns)
+	dMemberInsertCacheMut       sync.RWMutex
+	dMemberInsertCache          = make(map[string]insertCache)
+	dMemberUpdateCacheMut       sync.RWMutex
+	dMemberUpdateCache          = make(map[string]updateCache)
+	dMemberUpsertCacheMut       sync.RWMutex
+	dMemberUpsertCache          = make(map[string]insertCache)
 )
 
 var (
@@ -79,8 +80,8 @@ var (
 	_ = bytes.MinRead
 )
 
-// OneP returns a single discordMember record from the query, and panics on error.
-func (q discordMemberQuery) OneP() *DiscordMember {
+// OneP returns a single dMember record from the query, and panics on error.
+func (q dMemberQuery) OneP() *DMember {
 	o, err := q.One()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -89,9 +90,9 @@ func (q discordMemberQuery) OneP() *DiscordMember {
 	return o
 }
 
-// One returns a single discordMember record from the query.
-func (q discordMemberQuery) One() (*DiscordMember, error) {
-	o := &DiscordMember{}
+// One returns a single dMember record from the query.
+func (q dMemberQuery) One() (*DMember, error) {
+	o := &DMember{}
 
 	queries.SetLimit(q.Query, 1)
 
@@ -100,14 +101,14 @@ func (q discordMemberQuery) One() (*DiscordMember, error) {
 		if errors.Cause(err) == sql.ErrNoRows {
 			return nil, sql.ErrNoRows
 		}
-		return nil, errors.Wrap(err, "models: failed to execute a one query for discord_members")
+		return nil, errors.Wrap(err, "models: failed to execute a one query for d_members")
 	}
 
 	return o, nil
 }
 
-// AllP returns all DiscordMember records from the query, and panics on error.
-func (q discordMemberQuery) AllP() DiscordMemberSlice {
+// AllP returns all DMember records from the query, and panics on error.
+func (q dMemberQuery) AllP() DMemberSlice {
 	o, err := q.All()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -116,20 +117,20 @@ func (q discordMemberQuery) AllP() DiscordMemberSlice {
 	return o
 }
 
-// All returns all DiscordMember records from the query.
-func (q discordMemberQuery) All() (DiscordMemberSlice, error) {
-	var o DiscordMemberSlice
+// All returns all DMember records from the query.
+func (q dMemberQuery) All() (DMemberSlice, error) {
+	var o DMemberSlice
 
 	err := q.Bind(&o)
 	if err != nil {
-		return nil, errors.Wrap(err, "models: failed to assign all query results to DiscordMember slice")
+		return nil, errors.Wrap(err, "models: failed to assign all query results to DMember slice")
 	}
 
 	return o, nil
 }
 
-// CountP returns the count of all DiscordMember records in the query, and panics on error.
-func (q discordMemberQuery) CountP() int64 {
+// CountP returns the count of all DMember records in the query, and panics on error.
+func (q dMemberQuery) CountP() int64 {
 	c, err := q.Count()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -138,8 +139,8 @@ func (q discordMemberQuery) CountP() int64 {
 	return c
 }
 
-// Count returns the count of all DiscordMember records in the query.
-func (q discordMemberQuery) Count() (int64, error) {
+// Count returns the count of all DMember records in the query.
+func (q dMemberQuery) Count() (int64, error) {
 	var count int64
 
 	queries.SetSelect(q.Query, nil)
@@ -147,14 +148,14 @@ func (q discordMemberQuery) Count() (int64, error) {
 
 	err := q.Query.QueryRow().Scan(&count)
 	if err != nil {
-		return 0, errors.Wrap(err, "models: failed to count discord_members rows")
+		return 0, errors.Wrap(err, "models: failed to count d_members rows")
 	}
 
 	return count, nil
 }
 
 // Exists checks if the row exists in the table, and panics on error.
-func (q discordMemberQuery) ExistsP() bool {
+func (q dMemberQuery) ExistsP() bool {
 	e, err := q.Exists()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -164,7 +165,7 @@ func (q discordMemberQuery) ExistsP() bool {
 }
 
 // Exists checks if the row exists in the table.
-func (q discordMemberQuery) Exists() (bool, error) {
+func (q dMemberQuery) Exists() (bool, error) {
 	var count int64
 
 	queries.SetCount(q.Query)
@@ -172,62 +173,62 @@ func (q discordMemberQuery) Exists() (bool, error) {
 
 	err := q.Query.QueryRow().Scan(&count)
 	if err != nil {
-		return false, errors.Wrap(err, "models: failed to check if discord_members exists")
+		return false, errors.Wrap(err, "models: failed to check if d_members exists")
 	}
 
 	return count > 0, nil
 }
 
 // UserG pointed to by the foreign key.
-func (o *DiscordMember) UserG(mods ...qm.QueryMod) discordUserQuery {
+func (o *DMember) UserG(mods ...qm.QueryMod) dUserQuery {
 	return o.User(boil.GetDB(), mods...)
 }
 
 // User pointed to by the foreign key.
-func (o *DiscordMember) User(exec boil.Executor, mods ...qm.QueryMod) discordUserQuery {
+func (o *DMember) User(exec boil.Executor, mods ...qm.QueryMod) dUserQuery {
 	queryMods := []qm.QueryMod{
 		qm.Where("id=?", o.UserID),
 	}
 
 	queryMods = append(queryMods, mods...)
 
-	query := DiscordUsers(exec, queryMods...)
-	queries.SetFrom(query.Query, "\"discord_users\"")
+	query := DUsers(exec, queryMods...)
+	queries.SetFrom(query.Query, "\"d_users\"")
 
 	return query
 }
 
 // LoadUser allows an eager lookup of values, cached into the
 // loaded structs of the objects.
-func (discordMemberL) LoadUser(e boil.Executor, singular bool, maybeDiscordMember interface{}) error {
-	var slice []*DiscordMember
-	var object *DiscordMember
+func (dMemberL) LoadUser(e boil.Executor, singular bool, maybeDMember interface{}) error {
+	var slice []*DMember
+	var object *DMember
 
 	count := 1
 	if singular {
-		object = maybeDiscordMember.(*DiscordMember)
+		object = maybeDMember.(*DMember)
 	} else {
-		slice = *maybeDiscordMember.(*DiscordMemberSlice)
+		slice = *maybeDMember.(*DMemberSlice)
 		count = len(slice)
 	}
 
 	args := make([]interface{}, count)
 	if singular {
 		if object.R == nil {
-			object.R = &discordMemberR{}
+			object.R = &dMemberR{}
 		}
 		args[0] = object.UserID
 	} else {
 		for i, obj := range slice {
 			if obj.R == nil {
-				obj.R = &discordMemberR{}
+				obj.R = &dMemberR{}
 			}
 			args[i] = obj.UserID
 		}
 	}
 
 	query := fmt.Sprintf(
-		"select * from \"discord_users\" where \"id\" in (%s)",
+		"select * from \"d_users\" where \"id\" in (%s)",
 		strmangle.Placeholders(dialect.IndexPlaceholders, count, 1, 1),
 	)
 
@@ -237,13 +238,13 @@ func (discordMemberL) LoadUser(e boil.Executor, singular bool, maybeDiscordMembe
 
 	results, err := e.Query(query, args...)
 	if err != nil {
-		return errors.Wrap(err, "failed to eager load DiscordUser")
+		return errors.Wrap(err, "failed to eager load DUser")
 	}
 	defer results.Close()
 
-	var resultSlice []*DiscordUser
+	var resultSlice []*DUser
 	if err = queries.Bind(results, &resultSlice); err != nil {
-		return errors.Wrap(err, "failed to bind eager loaded slice DiscordUser")
+		return errors.Wrap(err, "failed to bind eager loaded slice DUser")
 	}
 
 	if singular && len(resultSlice) != 0 {
@@ -263,38 +264,38 @@ func (discordMemberL) LoadUser(e boil.Executor, singular bool, maybeDiscordMembe
 	return nil
 }
 
-// SetUserG of the discord_member to the related item.
+// SetUserG of the d_member to the related item.
 // Sets o.R.User to related.
-// Adds o to related.R.UserDiscordMembers.
+// Adds o to related.R.UserDMembers.
 // Uses the global database handle.
-func (o *DiscordMember) SetUserG(insert bool, related *DiscordUser) error {
+func (o *DMember) SetUserG(insert bool, related *DUser) error {
 	return o.SetUser(boil.GetDB(), insert, related)
 }
 
-// SetUserP of the discord_member to the related item.
+// SetUserP of the d_member to the related item.
 // Sets o.R.User to related.
-// Adds o to related.R.UserDiscordMembers.
+// Adds o to related.R.UserDMembers.
 // Panics on error.
-func (o *DiscordMember) SetUserP(exec boil.Executor, insert bool, related *DiscordUser) {
+func (o *DMember) SetUserP(exec boil.Executor, insert bool, related *DUser) {
 	if err := o.SetUser(exec, insert, related); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// SetUserGP of the discord_member to the related item.
+// SetUserGP of the d_member to the related item.
 // Sets o.R.User to related.
-// Adds o to related.R.UserDiscordMembers.
+// Adds o to related.R.UserDMembers.
 // Uses the global database handle and panics on error.
-func (o *DiscordMember) SetUserGP(insert bool, related *DiscordUser) {
+func (o *DMember) SetUserGP(insert bool, related *DUser) {
 	if err := o.SetUser(boil.GetDB(), insert, related); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// SetUser of the discord_member to the related item.
+// SetUser of the d_member to the related item.
 // Sets o.R.User to related.
-// Adds o to related.R.UserDiscordMembers.
-func (o *DiscordMember) SetUser(exec boil.Executor, insert bool, related *DiscordUser) error {
+// Adds o to related.R.UserDMembers.
+func (o *DMember) SetUser(exec boil.Executor, insert bool, related *DUser) error {
 	var err error
 	if insert {
 		if err = related.Insert(exec); err != nil {
@@ -303,9 +304,9 @@ func (o *DiscordMember) SetUser(exec boil.Executor, insert bool, related *Discor
 	}
 
 	updateQuery := fmt.Sprintf(
-		"UPDATE \"discord_members\" SET %s WHERE %s",
+		"UPDATE \"d_members\" SET %s WHERE %s",
 		strmangle.SetParamNames("\"", "\"", 1, []string{"user_id"}),
-		strmangle.WhereClause("\"", "\"", 2, discordMemberPrimaryKeyColumns),
+		strmangle.WhereClause("\"", "\"", 2, dMemberPrimaryKeyColumns),
 	)
 	values := []interface{}{related.ID, o.UserID, o.GuildID}
 
@@ -321,7 +322,7 @@ func (o *DiscordMember) SetUser(exec boil.Executor, insert bool, related *Discor
 	o.UserID = related.ID
 
 	if o.R == nil {
-		o.R = &discordMemberR{
+		o.R = &dMemberR{
 			User: related,
 		}
 	} else {
@@ -329,35 +330,35 @@ func (o *DiscordMember) SetUser(exec boil.Executor, insert bool, related *Discor
 	}
 
 	if related.R == nil {
-		related.R = &discordUserR{
-			UserDiscordMembers: DiscordMemberSlice{o},
+		related.R = &dUserR{
+			UserDMembers: DMemberSlice{o},
 		}
 	} else {
-		related.R.UserDiscordMembers = append(related.R.UserDiscordMembers, o)
+		related.R.UserDMembers = append(related.R.UserDMembers, o)
 	}
 
 	return nil
 }
 
-// DiscordMembersG retrieves all records.
-func DiscordMembersG(mods ...qm.QueryMod) discordMemberQuery {
-	return DiscordMembers(boil.GetDB(), mods...)
+// DMembersG retrieves all records.
+func DMembersG(mods ...qm.QueryMod) dMemberQuery {
+	return DMembers(boil.GetDB(), mods...)
 }
 
-// DiscordMembers retrieves all the records using an executor.
-func DiscordMembers(exec boil.Executor, mods ...qm.QueryMod) discordMemberQuery {
-	mods = append(mods, qm.From("\"discord_members\""))
-	return discordMemberQuery{NewQuery(exec, mods...)}
+// DMembers retrieves all the records using an executor.
+func DMembers(exec boil.Executor, mods ...qm.QueryMod) dMemberQuery {
+	mods = append(mods, qm.From("\"d_members\""))
+	return dMemberQuery{NewQuery(exec, mods...)}
 }
 
-// FindDiscordMemberG retrieves a single record by ID.
-func FindDiscordMemberG(userID int64, guildID int64, selectCols ...string) (*DiscordMember, error) {
-	return FindDiscordMember(boil.GetDB(), userID, guildID, selectCols...)
+// FindDMemberG retrieves a single record by ID.
+func FindDMemberG(userID int64, guildID int64, selectCols ...string) (*DMember, error) {
+	return FindDMember(boil.GetDB(), userID, guildID, selectCols...)
 }
 
-// FindDiscordMemberGP retrieves a single record by ID, and panics on error.
-func FindDiscordMemberGP(userID int64, guildID int64, selectCols ...string) *DiscordMember {
-	retobj, err := FindDiscordMember(boil.GetDB(), userID, guildID, selectCols...)
+// FindDMemberGP retrieves a single record by ID, and panics on error.
+func FindDMemberGP(userID int64, guildID int64, selectCols ...string) *DMember {
+	retobj, err := FindDMember(boil.GetDB(), userID, guildID, selectCols...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -365,35 +366,35 @@ func FindDiscordMemberGP(userID int64, guildID int64, selectCols ...string) *Dis
 	return retobj
 }
 
-// FindDiscordMember retrieves a single record by ID with an executor.
+// FindDMember retrieves a single record by ID with an executor.
 // If selectCols is empty Find will return all columns.
-func FindDiscordMember(exec boil.Executor, userID int64, guildID int64, selectCols ...string) (*DiscordMember, error) {
-	discordMemberObj := &DiscordMember{}
+func FindDMember(exec boil.Executor, userID int64, guildID int64, selectCols ...string) (*DMember, error) {
+	dMemberObj := &DMember{}
 
 	sel := "*"
 	if len(selectCols) > 0 {
 		sel = strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, selectCols), ",")
 	}
 	query := fmt.Sprintf(
-		"select %s from \"discord_members\" where \"user_id\"=$1 AND \"guild_id\"=$2", sel,
+		"select %s from \"d_members\" where \"user_id\"=$1 AND \"guild_id\"=$2", sel,
 	)
 
 	q := queries.Raw(exec, query, userID, guildID)
 
-	err := q.Bind(discordMemberObj)
+	err := q.Bind(dMemberObj)
 	if err != nil {
 		if errors.Cause(err) == sql.ErrNoRows {
 			return nil, sql.ErrNoRows
 		}
-		return nil, errors.Wrap(err, "models: unable to select from discord_members")
+		return nil, errors.Wrap(err, "models: unable to select from d_members")
 	}
 
-	return discordMemberObj, nil
+	return dMemberObj, nil
 }
 
-// FindDiscordMemberP retrieves a single record by ID with an executor, and panics on error.
-func FindDiscordMemberP(exec boil.Executor, userID int64, guildID int64, selectCols ...string) *DiscordMember {
-	retobj, err := FindDiscordMember(exec, userID, guildID, selectCols...)
+// FindDMemberP retrieves a single record by ID with an executor, and panics on error.
+func FindDMemberP(exec boil.Executor, userID int64, guildID int64, selectCols ...string) *DMember {
+	retobj, err := FindDMember(exec, userID, guildID, selectCols...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -402,13 +403,13 @@ func FindDiscordMemberP(exec boil.Executor, userID int64, guildID int64, selectC
 }
 
 // InsertG a single record. See Insert for whitelist behavior description.
-func (o *DiscordMember) InsertG(whitelist ...string) error {
+func (o *DMember) InsertG(whitelist ...string) error {
 	return o.Insert(boil.GetDB(), whitelist...)
 }
 
 // InsertGP a single record, and panics on error. See Insert for whitelist
 // behavior description.
-func (o *DiscordMember) InsertGP(whitelist ...string) {
+func (o *DMember) InsertGP(whitelist ...string) {
 	if err := o.Insert(boil.GetDB(), whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -416,7 +417,7 @@ func (o *DiscordMember) InsertGP(whitelist ...string) {
 
 // InsertP a single record using an executor, and panics on error. See Insert
 // for whitelist behavior description.
-func (o *DiscordMember) InsertP(exec boil.Executor, whitelist ...string) {
+func (o *DMember) InsertP(exec boil.Executor, whitelist ...string) {
 	if err := o.Insert(exec, whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -427,9 +428,9 @@ func (o *DiscordMember) InsertP(exec boil.Executor, whitelist ...string) {
 // No whitelist behavior: Without a whitelist, columns are inferred by the following rules:
 // - All columns without a default value are included (i.e. name, age)
 // - All columns with a default, but non-zero are included (i.e. health = 75)
-func (o *DiscordMember) Insert(exec boil.Executor, whitelist ...string) error {
+func (o *DMember) Insert(exec boil.Executor, whitelist ...string) error {
 	if o == nil {
-		return errors.New("models: no discord_members provided for insertion")
+		return errors.New("models: no d_members provided for insertion")
 	}
 
 	var err error
@@ -439,31 +440,31 @@ func (o *DiscordMember) Insert(exec boil.Executor, whitelist ...string) error {
 		o.CreatedAt = currTime
 	}
 
-	nzDefaults := queries.NonZeroDefaultSet(discordMemberColumnsWithDefault, o)
+	nzDefaults := queries.NonZeroDefaultSet(dMemberColumnsWithDefault, o)
 
 	key := makeCacheKey(whitelist, nzDefaults)
-	discordMemberInsertCacheMut.RLock()
-	cache, cached := discordMemberInsertCache[key]
-	discordMemberInsertCacheMut.RUnlock()
+	dMemberInsertCacheMut.RLock()
+	cache, cached := dMemberInsertCache[key]
+	dMemberInsertCacheMut.RUnlock()
 
 	if !cached {
 		wl, returnColumns := strmangle.InsertColumnSet(
-			discordMemberColumns,
-			discordMemberColumnsWithDefault,
-			discordMemberColumnsWithoutDefault,
+			dMemberColumns,
+			dMemberColumnsWithDefault,
+			dMemberColumnsWithoutDefault,
 			nzDefaults,
 			whitelist,
 		)
 
-		cache.valueMapping, err = queries.BindMapping(discordMemberType, discordMemberMapping, wl)
+		cache.valueMapping, err = queries.BindMapping(dMemberType, dMemberMapping, wl)
 		if err != nil {
 			return err
 		}
-		cache.retMapping, err = queries.BindMapping(discordMemberType, discordMemberMapping, returnColumns)
+		cache.retMapping, err = queries.BindMapping(dMemberType, dMemberMapping, returnColumns)
 		if err != nil {
 			return err
 		}
-		cache.query = fmt.Sprintf("INSERT INTO \"discord_members\" (\"%s\") VALUES (%s)", strings.Join(wl, "\",\""), strmangle.Placeholders(dialect.IndexPlaceholders, len(wl), 1, 1))
+		cache.query = fmt.Sprintf("INSERT INTO \"d_members\" (\"%s\") VALUES (%s)", strings.Join(wl, "\",\""), strmangle.Placeholders(dialect.IndexPlaceholders, len(wl), 1, 1))
 
 		if len(cache.retMapping) != 0 {
 			cache.query += fmt.Sprintf(" RETURNING \"%s\"", strings.Join(returnColumns, "\",\""))
@@ -485,67 +486,67 @@ func (o *DiscordMember) Insert(exec boil.Executor, whitelist ...string) error {
 	}
 
 	if err != nil {
-		return errors.Wrap(err, "models: unable to insert into discord_members")
+		return errors.Wrap(err, "models: unable to insert into d_members")
 	}
 
 	if !cached {
-		discordMemberInsertCacheMut.Lock()
-		discordMemberInsertCache[key] = cache
-		discordMemberInsertCacheMut.Unlock()
+		dMemberInsertCacheMut.Lock()
+		dMemberInsertCache[key] = cache
+		dMemberInsertCacheMut.Unlock()
 	}
 
 	return nil
 }
 
-// UpdateG a single DiscordMember record. See Update for
+// UpdateG a single DMember record. See Update for
 // whitelist behavior description.
-func (o *DiscordMember) UpdateG(whitelist ...string) error {
+func (o *DMember) UpdateG(whitelist ...string) error {
 	return o.Update(boil.GetDB(), whitelist...)
 }
 
-// UpdateGP a single DiscordMember record.
+// UpdateGP a single DMember record.
 // UpdateGP takes a whitelist of column names that should be updated.
 // Panics on error. See Update for whitelist behavior description.
-func (o *DiscordMember) UpdateGP(whitelist ...string) {
+func (o *DMember) UpdateGP(whitelist ...string) {
 	if err := o.Update(boil.GetDB(), whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// UpdateP uses an executor to update the DiscordMember, and panics on error.
+// UpdateP uses an executor to update the DMember, and panics on error.
 // See Update for whitelist behavior description.
-func (o *DiscordMember) UpdateP(exec boil.Executor, whitelist ...string) {
+func (o *DMember) UpdateP(exec boil.Executor, whitelist ...string) {
 	err := o.Update(exec, whitelist...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// Update uses an executor to update the DiscordMember.
+// Update uses an executor to update the DMember.
 // Whitelist behavior: If a whitelist is provided, only the columns given are updated.
 // No whitelist behavior: Without a whitelist, columns are inferred by the following rules:
 // - All columns are inferred to start with
 // - All primary keys are subtracted from this set
 // Update does not automatically update the record in case of default values. Use .Reload()
 // to refresh the records.
-func (o *DiscordMember) Update(exec boil.Executor, whitelist ...string) error {
+func (o *DMember) Update(exec boil.Executor, whitelist ...string) error {
 	var err error
 	key := makeCacheKey(whitelist, nil)
-	discordMemberUpdateCacheMut.RLock()
-	cache, cached := discordMemberUpdateCache[key]
-	discordMemberUpdateCacheMut.RUnlock()
+	dMemberUpdateCacheMut.RLock()
+	cache, cached := dMemberUpdateCache[key]
+	dMemberUpdateCacheMut.RUnlock()
 
 	if !cached {
-		wl := strmangle.UpdateColumnSet(discordMemberColumns, discordMemberPrimaryKeyColumns, whitelist)
+		wl := strmangle.UpdateColumnSet(dMemberColumns, dMemberPrimaryKeyColumns, whitelist)
 		if len(wl) == 0 {
-			return errors.New("models: unable to update discord_members, could not build whitelist")
+			return errors.New("models: unable to update d_members, could not build whitelist")
 		}
 
-		cache.query = fmt.Sprintf("UPDATE \"discord_members\" SET %s WHERE %s",
+		cache.query = fmt.Sprintf("UPDATE \"d_members\" SET %s WHERE %s",
 			strmangle.SetParamNames("\"", "\"", 1, wl),
-			strmangle.WhereClause("\"", "\"", len(wl)+1, discordMemberPrimaryKeyColumns),
+			strmangle.WhereClause("\"", "\"", len(wl)+1, dMemberPrimaryKeyColumns),
 		)
-		cache.valueMapping, err = queries.BindMapping(discordMemberType, discordMemberMapping, append(wl, discordMemberPrimaryKeyColumns...))
+		cache.valueMapping, err = queries.BindMapping(dMemberType, dMemberMapping, append(wl, dMemberPrimaryKeyColumns...))
 		if err != nil {
 			return err
 		}
@@ -560,58 +561,58 @@ func (o *DiscordMember) Update(exec boil.Executor, whitelist ...string) error {
 
 	_, err = exec.Exec(cache.query, values...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to update discord_members row")
+		return errors.Wrap(err, "models: unable to update d_members row")
 	}
 
 	if !cached {
-		discordMemberUpdateCacheMut.Lock()
-		discordMemberUpdateCache[key] = cache
-		discordMemberUpdateCacheMut.Unlock()
+		dMemberUpdateCacheMut.Lock()
+		dMemberUpdateCache[key] = cache
+		dMemberUpdateCacheMut.Unlock()
 	}
 
 	return nil
 }
 
 // UpdateAllP updates all rows with matching column names, and panics on error.
-func (q discordMemberQuery) UpdateAllP(cols M) {
+func (q dMemberQuery) UpdateAllP(cols M) {
 	if err := q.UpdateAll(cols); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // UpdateAll updates all rows with the specified column values.
-func (q discordMemberQuery) UpdateAll(cols M) error {
+func (q dMemberQuery) UpdateAll(cols M) error {
 	queries.SetUpdate(q.Query, cols)
 
 	_, err := q.Query.Exec()
 	if err != nil {
-		return errors.Wrap(err, "models: unable to update all for discord_members")
+		return errors.Wrap(err, "models: unable to update all for d_members")
 	}
 
 	return nil
 }
 
 // UpdateAllG updates all rows with the specified column values.
-func (o DiscordMemberSlice) UpdateAllG(cols M) error {
+func (o DMemberSlice) UpdateAllG(cols M) error {
 	return o.UpdateAll(boil.GetDB(), cols)
 }
 
 // UpdateAllGP updates all rows with the specified column values, and panics on error.
-func (o DiscordMemberSlice) UpdateAllGP(cols M) {
+func (o DMemberSlice) UpdateAllGP(cols M) {
 	if err := o.UpdateAll(boil.GetDB(), cols); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // UpdateAllP updates all rows with the specified column values, and panics on error.
-func (o DiscordMemberSlice) UpdateAllP(exec boil.Executor, cols M) {
+func (o DMemberSlice) UpdateAllP(exec boil.Executor, cols M) {
 	if err := o.UpdateAll(exec, cols); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // UpdateAll updates all rows with the specified column values, using an executor.
-func (o DiscordMemberSlice) UpdateAll(exec boil.Executor, cols M) error {
+func (o DMemberSlice) UpdateAll(exec boil.Executor, cols M) error {
 	ln := int64(len(o))
 	if ln == 0 {
 		return nil
@@ -633,14 +634,14 @@ func (o DiscordMemberSlice) UpdateAll(exec boil.Executor, cols M) error {
 
 	// Append all of the primary key values for each column
 	for _, obj := range o {
-		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), discordMemberPrimaryKeyMapping)
+		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), dMemberPrimaryKeyMapping)
 		args = append(args, pkeyArgs...)
 	}
 
 	sql := fmt.Sprintf(
-		"UPDATE \"discord_members\" SET %s WHERE (\"user_id\",\"guild_id\") IN (%s)",
+		"UPDATE \"d_members\" SET %s WHERE (\"user_id\",\"guild_id\") IN (%s)",
 		strmangle.SetParamNames("\"", "\"", 1, colNames),
-		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(discordMemberPrimaryKeyColumns), len(colNames)+1, len(discordMemberPrimaryKeyColumns)),
+		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(dMemberPrimaryKeyColumns), len(colNames)+1, len(dMemberPrimaryKeyColumns)),
 	)
 
 	if boil.DebugMode {
@@ -650,19 +651,19 @@ func (o DiscordMemberSlice) UpdateAll(exec boil.Executor, cols M) error {
 
 	_, err := exec.Exec(sql, args...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to update all in discordMember slice")
+		return errors.Wrap(err, "models: unable to update all in dMember slice")
 	}
 
 	return nil
 }
 
 // UpsertG attempts an insert, and does an update or ignore on conflict.
-func (o *DiscordMember) UpsertG(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
+func (o *DMember) UpsertG(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
 	return o.Upsert(boil.GetDB(), updateOnConflict, conflictColumns, updateColumns, whitelist...)
 }
 
 // UpsertGP attempts an insert, and does an update or ignore on conflict. Panics on error.
-func (o *DiscordMember) UpsertGP(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
+func (o *DMember) UpsertGP(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
 	if err := o.Upsert(boil.GetDB(), updateOnConflict, conflictColumns, updateColumns, whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -670,16 +671,16 @@ func (o *DiscordMember) UpsertGP(updateOnConflict bool, conflictColumns []string
 
 // UpsertP attempts an insert using an executor, and does an update or ignore on conflict.
 // UpsertP panics on error.
-func (o *DiscordMember) UpsertP(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
+func (o *DMember) UpsertP(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
 	if err := o.Upsert(exec, updateOnConflict, conflictColumns, updateColumns, whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // Upsert attempts an insert using an executor, and does an update or ignore on conflict.
-func (o *DiscordMember) Upsert(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
+func (o *DMember) Upsert(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
 	if o == nil {
-		return errors.New("models: no discord_members provided for upsert")
+		return errors.New("models: no d_members provided for upsert")
 	}
 	currTime := time.Now().In(boil.GetLocation())
 
@@ -687,7 +688,7 @@ func (o *DiscordMember) Upsert(exec boil.Executor, updateOnConflict bool, confli
 		o.CreatedAt = currTime
 	}
 
-	nzDefaults := queries.NonZeroDefaultSet(discordMemberColumnsWithDefault, o)
+	nzDefaults := queries.NonZeroDefaultSet(dMemberColumnsWithDefault, o)
 
 	// Build cache key in-line uglily - mysql vs postgres problems
 	buf := strmangle.GetBuffer()
@@ -715,43 +716,43 @@ func (o *DiscordMember) Upsert(exec boil.Executor, updateOnConflict bool, confli
 	key := buf.String()
 	strmangle.PutBuffer(buf)
 
-	discordMemberUpsertCacheMut.RLock()
-	cache, cached := discordMemberUpsertCache[key]
-	discordMemberUpsertCacheMut.RUnlock()
+	dMemberUpsertCacheMut.RLock()
+	cache, cached := dMemberUpsertCache[key]
+	dMemberUpsertCacheMut.RUnlock()
 
 	var err error
 
 	if !cached {
 		var ret []string
 		whitelist, ret = strmangle.InsertColumnSet(
-			discordMemberColumns,
-			discordMemberColumnsWithDefault,
-			discordMemberColumnsWithoutDefault,
+			dMemberColumns,
+			dMemberColumnsWithDefault,
+			dMemberColumnsWithoutDefault,
 			nzDefaults,
 			whitelist,
 		)
 		update := strmangle.UpdateColumnSet(
-			discordMemberColumns,
-			discordMemberPrimaryKeyColumns,
+			dMemberColumns,
+			dMemberPrimaryKeyColumns,
 			updateColumns,
 		)
 		if len(update) == 0 {
-			return errors.New("models: unable to upsert discord_members, could not build update column list")
+			return errors.New("models: unable to upsert d_members, could not build update column list")
 		}
 
 		conflict := conflictColumns
 		if len(conflict) == 0 {
-			conflict = make([]string, len(discordMemberPrimaryKeyColumns))
-			copy(conflict, discordMemberPrimaryKeyColumns)
+			conflict = make([]string, len(dMemberPrimaryKeyColumns))
+			copy(conflict, dMemberPrimaryKeyColumns)
 		}
-		cache.query = queries.BuildUpsertQueryPostgres(dialect, "\"discord_members\"", updateOnConflict, ret, update, conflict, whitelist)
+		cache.query = queries.BuildUpsertQueryPostgres(dialect, "\"d_members\"", updateOnConflict, ret, update, conflict, whitelist)
 
-		cache.valueMapping, err = queries.BindMapping(discordMemberType, discordMemberMapping, whitelist)
+		cache.valueMapping, err = queries.BindMapping(dMemberType, dMemberMapping, whitelist)
 		if err != nil {
 			return err
 		}
 		if len(ret) != 0 {
-			cache.retMapping, err = queries.BindMapping(discordMemberType, discordMemberMapping, ret)
+			cache.retMapping, err = queries.BindMapping(dMemberType, dMemberMapping, ret)
 			if err != nil {
 				return err
 			}
@@ -779,55 +780,55 @@ func (o *DiscordMember) Upsert(exec boil.Executor, updateOnConflict bool, confli
 		_, err = exec.Exec(cache.query, vals...)
 	}
 	if err != nil {
-		return errors.Wrap(err, "models: unable to upsert discord_members")
+		return errors.Wrap(err, "models: unable to upsert d_members")
 	}
 
 	if !cached {
-		discordMemberUpsertCacheMut.Lock()
-		discordMemberUpsertCache[key] = cache
-		discordMemberUpsertCacheMut.Unlock()
+		dMemberUpsertCacheMut.Lock()
+		dMemberUpsertCache[key] = cache
+		dMemberUpsertCacheMut.Unlock()
 	}
 
 	return nil
 }
 
-// DeleteP deletes a single DiscordMember record with an executor.
+// DeleteP deletes a single DMember record with an executor.
 // DeleteP will match against the primary key column to find the record to delete.
 // Panics on error.
-func (o *DiscordMember) DeleteP(exec boil.Executor) {
+func (o *DMember) DeleteP(exec boil.Executor) {
 	if err := o.Delete(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// DeleteG deletes a single DiscordMember record.
+// DeleteG deletes a single DMember record.
 // DeleteG will match against the primary key column to find the record to delete.
-func (o *DiscordMember) DeleteG() error {
+func (o *DMember) DeleteG() error {
 	if o == nil {
-		return errors.New("models: no DiscordMember provided for deletion")
+		return errors.New("models: no DMember provided for deletion")
 	}
 
 	return o.Delete(boil.GetDB())
 }
 
-// DeleteGP deletes a single DiscordMember record.
+// DeleteGP deletes a single DMember record.
 // DeleteGP will match against the primary key column to find the record to delete.
 // Panics on error.
-func (o *DiscordMember) DeleteGP() {
+func (o *DMember) DeleteGP() {
 	if err := o.DeleteG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// Delete deletes a single DiscordMember record with an executor.
+// Delete deletes a single DMember record with an executor.
 // Delete will match against the primary key column to find the record to delete.
-func (o *DiscordMember) Delete(exec boil.Executor) error {
+func (o *DMember) Delete(exec boil.Executor) error {
 	if o == nil {
-		return errors.New("models: no DiscordMember provided for delete")
+		return errors.New("models: no DMember provided for delete")
 	}
 
-	args := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(o)), discordMemberPrimaryKeyMapping)
-	sql := "DELETE FROM \"discord_members\" WHERE \"user_id\"=$1 AND \"guild_id\"=$2"
+	args := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(o)), dMemberPrimaryKeyMapping)
+	sql := "DELETE FROM \"d_members\" WHERE \"user_id\"=$1 AND \"guild_id\"=$2"
 
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, sql)
@@ -836,61 +837,61 @@ func (o *DiscordMember) Delete(exec boil.Executor) error {
 
 	_, err := exec.Exec(sql, args...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to delete from discord_members")
+		return errors.Wrap(err, "models: unable to delete from d_members")
 	}
 
 	return nil
 }
 
 // DeleteAllP deletes all rows, and panics on error.
-func (q discordMemberQuery) DeleteAllP() {
+func (q dMemberQuery) DeleteAllP() {
 	if err := q.DeleteAll(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // DeleteAll deletes all matching rows.
-func (q discordMemberQuery) DeleteAll() error {
+func (q dMemberQuery) DeleteAll() error {
 	if q.Query == nil {
-		return errors.New("models: no discordMemberQuery provided for delete all")
+		return errors.New("models: no dMemberQuery provided for delete all")
 	}
 
 	queries.SetDelete(q.Query)
 
 	_, err := q.Query.Exec()
 	if err != nil {
-		return errors.Wrap(err, "models: unable to delete all from discord_members")
+		return errors.Wrap(err, "models: unable to delete all from d_members")
 	}
 
 	return nil
 }
 
 // DeleteAllGP deletes all rows in the slice, and panics on error.
-func (o DiscordMemberSlice) DeleteAllGP() {
+func (o DMemberSlice) DeleteAllGP() {
 	if err := o.DeleteAllG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // DeleteAllG deletes all rows in the slice.
-func (o DiscordMemberSlice) DeleteAllG() error {
+func (o DMemberSlice) DeleteAllG() error {
 	if o == nil {
-		return errors.New("models: no DiscordMember slice provided for delete all")
+		return errors.New("models: no DMember slice provided for delete all")
 	}
 	return o.DeleteAll(boil.GetDB())
 }
 
 // DeleteAllP deletes all rows in the slice, using an executor, and panics on error.
-func (o DiscordMemberSlice) DeleteAllP(exec boil.Executor) {
+func (o DMemberSlice) DeleteAllP(exec boil.Executor) {
 	if err := o.DeleteAll(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // DeleteAll deletes all rows in the slice, using an executor.
-func (o DiscordMemberSlice) DeleteAll(exec boil.Executor) error {
+func (o DMemberSlice) DeleteAll(exec boil.Executor) error {
 	if o == nil {
-		return errors.New("models: no DiscordMember slice provided for delete all")
+		return errors.New("models: no DMember slice provided for delete all")
 	}
 
 	if len(o) == 0 {
@@ -899,14 +900,14 @@ func (o DiscordMemberSlice) DeleteAll(exec boil.Executor) error {
 
 	var args []interface{}
 	for _, obj := range o {
-		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), discordMemberPrimaryKeyMapping)
+		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), dMemberPrimaryKeyMapping)
 		args = append(args, pkeyArgs...)
 	}
 
 	sql := fmt.Sprintf(
-		"DELETE FROM \"discord_members\" WHERE (%s) IN (%s)",
-		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, discordMemberPrimaryKeyColumns), ","),
-		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(discordMemberPrimaryKeyColumns), 1, len(discordMemberPrimaryKeyColumns)),
+		"DELETE FROM \"d_members\" WHERE (%s) IN (%s)",
+		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, dMemberPrimaryKeyColumns), ","),
+		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(dMemberPrimaryKeyColumns), 1, len(dMemberPrimaryKeyColumns)),
 	)
 
 	if boil.DebugMode {
@@ -916,30 +917,30 @@ func (o DiscordMemberSlice) DeleteAll(exec boil.Executor) error {
 
 	_, err := exec.Exec(sql, args...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to delete all from discordMember slice")
+		return errors.Wrap(err, "models: unable to delete all from dMember slice")
 	}
 
 	return nil
 }
 
 // ReloadGP refetches the object from the database and panics on error.
-func (o *DiscordMember) ReloadGP() {
+func (o *DMember) ReloadGP() {
 	if err := o.ReloadG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // ReloadP refetches the object from the database with an executor. Panics on error.
-func (o *DiscordMember) ReloadP(exec boil.Executor) {
+func (o *DMember) ReloadP(exec boil.Executor) {
 	if err := o.Reload(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // ReloadG refetches the object from the database using the primary keys.
-func (o *DiscordMember) ReloadG() error {
+func (o *DMember) ReloadG() error {
 	if o == nil {
-		return errors.New("models: no DiscordMember provided for reload")
+		return errors.New("models: no DMember provided for reload")
 	}
 
 	return o.Reload(boil.GetDB())
@@ -947,8 +948,8 @@ func (o *DiscordMember) ReloadG() error {
 
 // Reload refetches the object from the database
 // using the primary keys with an executor.
-func (o *DiscordMember) Reload(exec boil.Executor) error {
-	ret, err := FindDiscordMember(exec, o.UserID, o.GuildID)
+func (o *DMember) Reload(exec boil.Executor) error {
+	ret, err := FindDMember(exec, o.UserID, o.GuildID)
 	if err != nil {
 		return err
 	}
@@ -960,7 +961,7 @@ func (o *DiscordMember) Reload(exec boil.Executor) error {
 // ReloadAllGP refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
 // Panics on error.
-func (o *DiscordMemberSlice) ReloadAllGP() {
+func (o *DMemberSlice) ReloadAllGP() {
 	if err := o.ReloadAllG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -969,7 +970,7 @@ func (o *DiscordMemberSlice) ReloadAllGP() {
 // ReloadAllP refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
 // Panics on error.
-func (o *DiscordMemberSlice) ReloadAllP(exec boil.Executor) {
+func (o *DMemberSlice) ReloadAllP(exec boil.Executor) {
 	if err := o.ReloadAll(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -977,9 +978,9 @@ func (o *DiscordMemberSlice) ReloadAllP(exec boil.Executor) {
 
 // ReloadAllG refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
-func (o *DiscordMemberSlice) ReloadAllG() error {
+func (o *DMemberSlice) ReloadAllG() error {
 	if o == nil {
-		return errors.New("models: empty DiscordMemberSlice provided for reload all")
+		return errors.New("models: empty DMemberSlice provided for reload all")
 	}
 
 	return o.ReloadAll(boil.GetDB())
@@ -987,41 +988,41 @@ func (o *DiscordMemberSlice) ReloadAllG() error {
 
 // ReloadAll refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
-func (o *DiscordMemberSlice) ReloadAll(exec boil.Executor) error {
+func (o *DMemberSlice) ReloadAll(exec boil.Executor) error {
 	if o == nil || len(*o) == 0 {
 		return nil
 	}
 
-	discordMembers := DiscordMemberSlice{}
+	dMembers := DMemberSlice{}
 	var args []interface{}
 	for _, obj := range *o {
-		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), discordMemberPrimaryKeyMapping)
+		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), dMemberPrimaryKeyMapping)
 		args = append(args, pkeyArgs...)
 	}
 
 	sql := fmt.Sprintf(
-		"SELECT \"discord_members\".* FROM \"discord_members\" WHERE (%s) IN (%s)",
-		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, discordMemberPrimaryKeyColumns), ","),
-		strmangle.Placeholders(dialect.IndexPlaceholders, len(*o)*len(discordMemberPrimaryKeyColumns), 1, len(discordMemberPrimaryKeyColumns)),
+		"SELECT \"d_members\".* FROM \"d_members\" WHERE (%s) IN (%s)",
+		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, dMemberPrimaryKeyColumns), ","),
+		strmangle.Placeholders(dialect.IndexPlaceholders, len(*o)*len(dMemberPrimaryKeyColumns), 1, len(dMemberPrimaryKeyColumns)),
 	)
 
 	q := queries.Raw(exec, sql, args...)
 
-	err := q.Bind(&discordMembers)
+	err := q.Bind(&dMembers)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to reload all in DiscordMemberSlice")
+		return errors.Wrap(err, "models: unable to reload all in DMemberSlice")
 	}
 
-	*o = discordMembers
+	*o = dMembers
 
 	return nil
 }
 
-// DiscordMemberExists checks if the DiscordMember row exists.
-func DiscordMemberExists(exec boil.Executor, userID int64, guildID int64) (bool, error) {
+// DMemberExists checks if the DMember row exists.
+func DMemberExists(exec boil.Executor, userID int64, guildID int64) (bool, error) {
 	var exists bool
 
-	sql := "select exists(select 1 from \"discord_members\" where \"user_id\"=$1 AND \"guild_id\"=$2 limit 1)"
+	sql := "select exists(select 1 from \"d_members\" where \"user_id\"=$1 AND \"guild_id\"=$2 limit 1)"
 
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, sql)
@@ -1032,20 +1033,20 @@ func DiscordMemberExists(exec boil.Executor, userID int64, guildID int64) (bool,
 
 	err := row.Scan(&exists)
 	if err != nil {
-		return false, errors.Wrap(err, "models: unable to check if discord_members exists")
+		return false, errors.Wrap(err, "models: unable to check if d_members exists")
 	}
 
 	return exists, nil
 }
 
-// DiscordMemberExistsG checks if the DiscordMember row exists.
-func DiscordMemberExistsG(userID int64, guildID int64) (bool, error) {
-	return DiscordMemberExists(boil.GetDB(), userID, guildID)
+// DMemberExistsG checks if the DMember row exists.
+func DMemberExistsG(userID int64, guildID int64) (bool, error) {
+	return DMemberExists(boil.GetDB(), userID, guildID)
 }
 
-// DiscordMemberExistsGP checks if the DiscordMember row exists. Panics on error.
-func DiscordMemberExistsGP(userID int64, guildID int64) bool {
-	e, err := DiscordMemberExists(boil.GetDB(), userID, guildID)
+// DMemberExistsGP checks if the DMember row exists. Panics on error.
+func DMemberExistsGP(userID int64, guildID int64) bool {
+	e, err := DMemberExists(boil.GetDB(), userID, guildID)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -1053,9 +1054,9 @@ func DiscordMemberExistsGP(userID int64, guildID int64) bool {
 	return e
 }
 
-// DiscordMemberExistsP checks if the DiscordMember row exists. Panics on error.
-func DiscordMemberExistsP(exec boil.Executor, userID int64, guildID int64) bool {
-	e, err := DiscordMemberExists(exec, userID, guildID)
+// DMemberExistsP checks if the DMember row exists. Panics on error.
+func DMemberExistsP(exec boil.Executor, userID int64, guildID int64) bool {
+	e, err := DMemberExists(exec, userID, guildID)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}

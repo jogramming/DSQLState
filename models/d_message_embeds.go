@@ -18,8 +18,8 @@ import (
 	"gopkg.in/nullbio/null.v6"
 )
 
-// DiscordMessageEmbed is an object representing the database table.
-type DiscordMessageEmbed struct {
+// DMessageEmbed is an object representing the database table.
+type DMessageEmbed struct {
 	ID                 int64             `boil:"id" json:"id" toml:"id" yaml:"id"`
 	MessageID          int64             `boil:"message_id" json:"message_id" toml:"message_id" yaml:"message_id"`
 	RevisionNum        int               `boil:"revision_num" json:"revision_num" toml:"revision_num" yaml:"revision_num"`
@@ -54,46 +54,46 @@ type DiscordMessageEmbed struct {
 	AuthorIconURL      null.String       `boil:"author_icon_url" json:"author_icon_url,omitempty" toml:"author_icon_url" yaml:"author_icon_url,omitempty"`
 	AuthorProxyIconURL null.String       `boil:"author_proxy_icon_url" json:"author_proxy_icon_url,omitempty" toml:"author_proxy_icon_url" yaml:"author_proxy_icon_url,omitempty"`
 
-	R *discordMessageEmbedR `boil:"-" json:"-" toml:"-" yaml:"-"`
-	L discordMessageEmbedL  `boil:"-" json:"-" toml:"-" yaml:"-"`
+	R *dMessageEmbedR `boil:"-" json:"-" toml:"-" yaml:"-"`
+	L dMessageEmbedL  `boil:"-" json:"-" toml:"-" yaml:"-"`
 }
 
-// discordMessageEmbedR is where relationships are stored.
-type discordMessageEmbedR struct {
-	Message *DiscordMessage
+// dMessageEmbedR is where relationships are stored.
+type dMessageEmbedR struct {
+	Message *DMessage
 }
 
-// discordMessageEmbedL is where Load methods for each relationship are stored.
-type discordMessageEmbedL struct{}
+// dMessageEmbedL is where Load methods for each relationship are stored.
+type dMessageEmbedL struct{}
 
 var (
-	discordMessageEmbedColumns               = []string{"id", "message_id", "revision_num", "url", "type", "title", "description", "timestamp", "color", "field_names", "field_values", "field_inlines", "footer_text", "footer_icon_url", "footer_proxy_icon_url", "image_url", "image_proxy_url", "image_width", "image_height", "thumbnail_url", "thumbnail_proxy_url", "thumbnail_width", "thumbnail_height", "video_url", "video_proxy_url", "video_width", "video_height", "provider_url", "provider_name", "author_url", "author_name", "author_icon_url", "author_proxy_icon_url"}
-	discordMessageEmbedColumnsWithoutDefault = []string{"message_id", "revision_num", "url", "type", "title", "description", "timestamp", "color", "field_names", "field_values", "field_inlines", "footer_text", "footer_icon_url", "footer_proxy_icon_url", "image_url", "image_proxy_url", "image_width", "image_height", "thumbnail_url", "thumbnail_proxy_url", "thumbnail_width", "thumbnail_height", "video_url", "video_proxy_url", "video_width", "video_height", "provider_url", "provider_name", "author_url", "author_name", "author_icon_url", "author_proxy_icon_url"}
-	discordMessageEmbedColumnsWithDefault    = []string{"id"}
-	discordMessageEmbedPrimaryKeyColumns     = []string{"id"}
+	dMessageEmbedColumns               = []string{"id", "message_id", "revision_num", "url", "type", "title", "description", "timestamp", "color", "field_names", "field_values", "field_inlines", "footer_text", "footer_icon_url", "footer_proxy_icon_url", "image_url", "image_proxy_url", "image_width", "image_height", "thumbnail_url", "thumbnail_proxy_url", "thumbnail_width", "thumbnail_height", "video_url", "video_proxy_url", "video_width", "video_height", "provider_url", "provider_name", "author_url", "author_name", "author_icon_url", "author_proxy_icon_url"}
+	dMessageEmbedColumnsWithoutDefault = []string{"message_id", "revision_num", "url", "type", "title", "description", "timestamp", "color", "field_names", "field_values", "field_inlines", "footer_text", "footer_icon_url", "footer_proxy_icon_url", "image_url", "image_proxy_url", "image_width", "image_height", "thumbnail_url", "thumbnail_proxy_url", "thumbnail_width", "thumbnail_height", "video_url", "video_proxy_url", "video_width", "video_height", "provider_url", "provider_name", "author_url", "author_name", "author_icon_url", "author_proxy_icon_url"}
+	dMessageEmbedColumnsWithDefault    = []string{"id"}
+	dMessageEmbedPrimaryKeyColumns     = []string{"id"}
 )
 
 type (
-	// DiscordMessageEmbedSlice is an alias for a slice of pointers to DiscordMessageEmbed.
-	// This should generally be used opposed to []DiscordMessageEmbed.
-	DiscordMessageEmbedSlice []*DiscordMessageEmbed
+	// DMessageEmbedSlice is an alias for a slice of pointers to DMessageEmbed.
+	// This should generally be used opposed to []DMessageEmbed.
+	DMessageEmbedSlice []*DMessageEmbed
 
-	discordMessageEmbedQuery struct {
+	dMessageEmbedQuery struct {
 		*queries.Query
 	}
 )
 
 // Cache for insert, update and upsert
 var (
-	discordMessageEmbedType                 = reflect.TypeOf(&DiscordMessageEmbed{})
-	discordMessageEmbedMapping              = queries.MakeStructMapping(discordMessageEmbedType)
-	discordMessageEmbedPrimaryKeyMapping, _ = queries.BindMapping(discordMessageEmbedType, discordMessageEmbedMapping, discordMessageEmbedPrimaryKeyColumns)
-	discordMessageEmbedInsertCacheMut       sync.RWMutex
-	discordMessageEmbedInsertCache          = make(map[string]insertCache)
-	discordMessageEmbedUpdateCacheMut       sync.RWMutex
-	discordMessageEmbedUpdateCache          = make(map[string]updateCache)
-	discordMessageEmbedUpsertCacheMut       sync.RWMutex
-	discordMessageEmbedUpsertCache          = make(map[string]insertCache)
+	dMessageEmbedType                 = reflect.TypeOf(&DMessageEmbed{})
+	dMessageEmbedMapping              = queries.MakeStructMapping(dMessageEmbedType)
+	dMessageEmbedPrimaryKeyMapping, _ = queries.BindMapping(dMessageEmbedType, dMessageEmbedMapping, dMessageEmbedPrimaryKeyColumns)
+	dMessageEmbedInsertCacheMut       sync.RWMutex
+	dMessageEmbedInsertCache          = make(map[string]insertCache)
+	dMessageEmbedUpdateCacheMut       sync.RWMutex
+	dMessageEmbedUpdateCache          = make(map[string]updateCache)
+	dMessageEmbedUpsertCacheMut       sync.RWMutex
+	dMessageEmbedUpsertCache          = make(map[string]insertCache)
 )
 
 var (
@@ -103,8 +103,8 @@ var (
 	_ = bytes.MinRead
 )
 
-// OneP returns a single discordMessageEmbed record from the query, and panics on error.
-func (q discordMessageEmbedQuery) OneP() *DiscordMessageEmbed {
+// OneP returns a single dMessageEmbed record from the query, and panics on error.
+func (q dMessageEmbedQuery) OneP() *DMessageEmbed {
 	o, err := q.One()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -113,9 +113,9 @@ func (q discordMessageEmbedQuery) OneP() *DiscordMessageEmbed {
 	return o
 }
 
-// One returns a single discordMessageEmbed record from the query.
-func (q discordMessageEmbedQuery) One() (*DiscordMessageEmbed, error) {
-	o := &DiscordMessageEmbed{}
+// One returns a single dMessageEmbed record from the query.
+func (q dMessageEmbedQuery) One() (*DMessageEmbed, error) {
+	o := &DMessageEmbed{}
 
 	queries.SetLimit(q.Query, 1)
 
@@ -124,14 +124,14 @@ func (q discordMessageEmbedQuery) One() (*DiscordMessageEmbed, error) {
 		if errors.Cause(err) == sql.ErrNoRows {
 			return nil, sql.ErrNoRows
 		}
-		return nil, errors.Wrap(err, "models: failed to execute a one query for discord_message_embeds")
+		return nil, errors.Wrap(err, "models: failed to execute a one query for d_message_embeds")
 	}
 
 	return o, nil
 }
 
-// AllP returns all DiscordMessageEmbed records from the query, and panics on error.
-func (q discordMessageEmbedQuery) AllP() DiscordMessageEmbedSlice {
+// AllP returns all DMessageEmbed records from the query, and panics on error.
+func (q dMessageEmbedQuery) AllP() DMessageEmbedSlice {
 	o, err := q.All()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -140,20 +140,20 @@ func (q discordMessageEmbedQuery) AllP() DiscordMessageEmbedSlice {
 	return o
 }
 
-// All returns all DiscordMessageEmbed records from the query.
-func (q discordMessageEmbedQuery) All() (DiscordMessageEmbedSlice, error) {
-	var o DiscordMessageEmbedSlice
+// All returns all DMessageEmbed records from the query.
+func (q dMessageEmbedQuery) All() (DMessageEmbedSlice, error) {
+	var o DMessageEmbedSlice
 
 	err := q.Bind(&o)
 	if err != nil {
-		return nil, errors.Wrap(err, "models: failed to assign all query results to DiscordMessageEmbed slice")
+		return nil, errors.Wrap(err, "models: failed to assign all query results to DMessageEmbed slice")
 	}
 
 	return o, nil
 }
 
-// CountP returns the count of all DiscordMessageEmbed records in the query, and panics on error.
-func (q discordMessageEmbedQuery) CountP() int64 {
+// CountP returns the count of all DMessageEmbed records in the query, and panics on error.
+func (q dMessageEmbedQuery) CountP() int64 {
 	c, err := q.Count()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -162,8 +162,8 @@ func (q discordMessageEmbedQuery) CountP() int64 {
 	return c
 }
 
-// Count returns the count of all DiscordMessageEmbed records in the query.
-func (q discordMessageEmbedQuery) Count() (int64, error) {
+// Count returns the count of all DMessageEmbed records in the query.
+func (q dMessageEmbedQuery) Count() (int64, error) {
 	var count int64
 
 	queries.SetSelect(q.Query, nil)
@@ -171,14 +171,14 @@ func (q discordMessageEmbedQuery) Count() (int64, error) {
 
 	err := q.Query.QueryRow().Scan(&count)
 	if err != nil {
-		return 0, errors.Wrap(err, "models: failed to count discord_message_embeds rows")
+		return 0, errors.Wrap(err, "models: failed to count d_message_embeds rows")
 	}
 
 	return count, nil
 }
 
 // Exists checks if the row exists in the table, and panics on error.
-func (q discordMessageEmbedQuery) ExistsP() bool {
+func (q dMessageEmbedQuery) ExistsP() bool {
 	e, err := q.Exists()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -188,7 +188,7 @@ func (q discordMessageEmbedQuery) ExistsP() bool {
 }
 
 // Exists checks if the row exists in the table.
-func (q discordMessageEmbedQuery) Exists() (bool, error) {
+func (q dMessageEmbedQuery) Exists() (bool, error) {
 	var count int64
 
 	queries.SetCount(q.Query)
@@ -196,62 +196,62 @@ func (q discordMessageEmbedQuery) Exists() (bool, error) {
 
 	err := q.Query.QueryRow().Scan(&count)
 	if err != nil {
-		return false, errors.Wrap(err, "models: failed to check if discord_message_embeds exists")
+		return false, errors.Wrap(err, "models: failed to check if d_message_embeds exists")
 	}
 
 	return count > 0, nil
 }
 
 // MessageG pointed to by the foreign key.
-func (o *DiscordMessageEmbed) MessageG(mods ...qm.QueryMod) discordMessageQuery {
+func (o *DMessageEmbed) MessageG(mods ...qm.QueryMod) dMessageQuery {
 	return o.Message(boil.GetDB(), mods...)
 }
 
 // Message pointed to by the foreign key.
-func (o *DiscordMessageEmbed) Message(exec boil.Executor, mods ...qm.QueryMod) discordMessageQuery {
+func (o *DMessageEmbed) Message(exec boil.Executor, mods ...qm.QueryMod) dMessageQuery {
 	queryMods := []qm.QueryMod{
 		qm.Where("id=?", o.MessageID),
 	}
 
 	queryMods = append(queryMods, mods...)
 
-	query := DiscordMessages(exec, queryMods...)
-	queries.SetFrom(query.Query, "\"discord_messages\"")
+	query := DMessages(exec, queryMods...)
+	queries.SetFrom(query.Query, "\"d_messages\"")
 
 	return query
 }
 
 // LoadMessage allows an eager lookup of values, cached into the
 // loaded structs of the objects.
-func (discordMessageEmbedL) LoadMessage(e boil.Executor, singular bool, maybeDiscordMessageEmbed interface{}) error {
-	var slice []*DiscordMessageEmbed
-	var object *DiscordMessageEmbed
+func (dMessageEmbedL) LoadMessage(e boil.Executor, singular bool, maybeDMessageEmbed interface{}) error {
+	var slice []*DMessageEmbed
+	var object *DMessageEmbed
 
 	count := 1
 	if singular {
-		object = maybeDiscordMessageEmbed.(*DiscordMessageEmbed)
+		object = maybeDMessageEmbed.(*DMessageEmbed)
 	} else {
-		slice = *maybeDiscordMessageEmbed.(*DiscordMessageEmbedSlice)
+		slice = *maybeDMessageEmbed.(*DMessageEmbedSlice)
 		count = len(slice)
 	}
 
 	args := make([]interface{}, count)
 	if singular {
 		if object.R == nil {
-			object.R = &discordMessageEmbedR{}
+			object.R = &dMessageEmbedR{}
 		}
 		args[0] = object.MessageID
 	} else {
 		for i, obj := range slice {
 			if obj.R == nil {
-				obj.R = &discordMessageEmbedR{}
+				obj.R = &dMessageEmbedR{}
 			}
 			args[i] = obj.MessageID
 		}
 	}
 
 	query := fmt.Sprintf(
-		"select * from \"discord_messages\" where \"id\" in (%s)",
+		"select * from \"d_messages\" where \"id\" in (%s)",
 		strmangle.Placeholders(dialect.IndexPlaceholders, count, 1, 1),
 	)
 
@@ -261,13 +261,13 @@ func (discordMessageEmbedL) LoadMessage(e boil.Executor, singular bool, maybeDis
 
 	results, err := e.Query(query, args...)
 	if err != nil {
-		return errors.Wrap(err, "failed to eager load DiscordMessage")
+		return errors.Wrap(err, "failed to eager load DMessage")
 	}
 	defer results.Close()
 
-	var resultSlice []*DiscordMessage
+	var resultSlice []*DMessage
 	if err = queries.Bind(results, &resultSlice); err != nil {
-		return errors.Wrap(err, "failed to bind eager loaded slice DiscordMessage")
+		return errors.Wrap(err, "failed to bind eager loaded slice DMessage")
 	}
 
 	if singular && len(resultSlice) != 0 {
@@ -287,38 +287,38 @@ func (discordMessageEmbedL) LoadMessage(e boil.Executor, singular bool, maybeDis
 	return nil
 }
 
-// SetMessageG of the discord_message_embed to the related item.
+// SetMessageG of the d_message_embed to the related item.
 // Sets o.R.Message to related.
-// Adds o to related.R.MessageDiscordMessageEmbeds.
+// Adds o to related.R.MessageDMessageEmbeds.
 // Uses the global database handle.
-func (o *DiscordMessageEmbed) SetMessageG(insert bool, related *DiscordMessage) error {
+func (o *DMessageEmbed) SetMessageG(insert bool, related *DMessage) error {
 	return o.SetMessage(boil.GetDB(), insert, related)
 }
 
-// SetMessageP of the discord_message_embed to the related item.
+// SetMessageP of the d_message_embed to the related item.
 // Sets o.R.Message to related.
-// Adds o to related.R.MessageDiscordMessageEmbeds.
+// Adds o to related.R.MessageDMessageEmbeds.
 // Panics on error.
-func (o *DiscordMessageEmbed) SetMessageP(exec boil.Executor, insert bool, related *DiscordMessage) {
+func (o *DMessageEmbed) SetMessageP(exec boil.Executor, insert bool, related *DMessage) {
 	if err := o.SetMessage(exec, insert, related); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// SetMessageGP of the discord_message_embed to the related item.
+// SetMessageGP of the d_message_embed to the related item.
 // Sets o.R.Message to related.
-// Adds o to related.R.MessageDiscordMessageEmbeds.
+// Adds o to related.R.MessageDMessageEmbeds.
 // Uses the global database handle and panics on error.
-func (o *DiscordMessageEmbed) SetMessageGP(insert bool, related *DiscordMessage) {
+func (o *DMessageEmbed) SetMessageGP(insert bool, related *DMessage) {
 	if err := o.SetMessage(boil.GetDB(), insert, related); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// SetMessage of the discord_message_embed to the related item.
+// SetMessage of the d_message_embed to the related item.
 // Sets o.R.Message to related.
-// Adds o to related.R.MessageDiscordMessageEmbeds.
-func (o *DiscordMessageEmbed) SetMessage(exec boil.Executor, insert bool, related *DiscordMessage) error {
+// Adds o to related.R.MessageDMessageEmbeds.
+func (o *DMessageEmbed) SetMessage(exec boil.Executor, insert bool, related *DMessage) error {
 	var err error
 	if insert {
 		if err = related.Insert(exec); err != nil {
@@ -327,9 +327,9 @@ func (o *DiscordMessageEmbed) SetMessage(exec boil.Executor, insert bool, relate
 	}
 
 	updateQuery := fmt.Sprintf(
-		"UPDATE \"discord_message_embeds\" SET %s WHERE %s",
+		"UPDATE \"d_message_embeds\" SET %s WHERE %s",
 		strmangle.SetParamNames("\"", "\"", 1, []string{"message_id"}),
-		strmangle.WhereClause("\"", "\"", 2, discordMessageEmbedPrimaryKeyColumns),
+		strmangle.WhereClause("\"", "\"", 2, dMessageEmbedPrimaryKeyColumns),
 	)
 	values := []interface{}{related.ID, o.ID}
 
@@ -345,7 +345,7 @@ func (o *DiscordMessageEmbed) SetMessage(exec boil.Executor, insert bool, relate
 	o.MessageID = related.ID
 
 	if o.R == nil {
-		o.R = &discordMessageEmbedR{
+		o.R = &dMessageEmbedR{
 			Message: related,
 		}
 	} else {
@@ -353,35 +353,35 @@ func (o *DiscordMessageEmbed) SetMessage(exec boil.Executor, insert bool, relate
 	}
 
 	if related.R == nil {
-		related.R = &discordMessageR{
-			MessageDiscordMessageEmbeds: DiscordMessageEmbedSlice{o},
+		related.R = &dMessageR{
+			MessageDMessageEmbeds: DMessageEmbedSlice{o},
 		}
 	} else {
-		related.R.MessageDiscordMessageEmbeds = append(related.R.MessageDiscordMessageEmbeds, o)
+		related.R.MessageDMessageEmbeds = append(related.R.MessageDMessageEmbeds, o)
 	}
 
 	return nil
 }
 
-// DiscordMessageEmbedsG retrieves all records.
-func DiscordMessageEmbedsG(mods ...qm.QueryMod) discordMessageEmbedQuery {
-	return DiscordMessageEmbeds(boil.GetDB(), mods...)
+// DMessageEmbedsG retrieves all records.
+func DMessageEmbedsG(mods ...qm.QueryMod) dMessageEmbedQuery {
+	return DMessageEmbeds(boil.GetDB(), mods...)
 }
 
-// DiscordMessageEmbeds retrieves all the records using an executor.
-func DiscordMessageEmbeds(exec boil.Executor, mods ...qm.QueryMod) discordMessageEmbedQuery {
-	mods = append(mods, qm.From("\"discord_message_embeds\""))
-	return discordMessageEmbedQuery{NewQuery(exec, mods...)}
+// DMessageEmbeds retrieves all the records using an executor.
+func DMessageEmbeds(exec boil.Executor, mods ...qm.QueryMod) dMessageEmbedQuery {
+	mods = append(mods, qm.From("\"d_message_embeds\""))
+	return dMessageEmbedQuery{NewQuery(exec, mods...)}
 }
 
-// FindDiscordMessageEmbedG retrieves a single record by ID.
-func FindDiscordMessageEmbedG(id int64, selectCols ...string) (*DiscordMessageEmbed, error) {
-	return FindDiscordMessageEmbed(boil.GetDB(), id, selectCols...)
+// FindDMessageEmbedG retrieves a single record by ID.
+func FindDMessageEmbedG(id int64, selectCols ...string) (*DMessageEmbed, error) {
+	return FindDMessageEmbed(boil.GetDB(), id, selectCols...)
 }
 
-// FindDiscordMessageEmbedGP retrieves a single record by ID, and panics on error.
-func FindDiscordMessageEmbedGP(id int64, selectCols ...string) *DiscordMessageEmbed {
-	retobj, err := FindDiscordMessageEmbed(boil.GetDB(), id, selectCols...)
+// FindDMessageEmbedGP retrieves a single record by ID, and panics on error.
+func FindDMessageEmbedGP(id int64, selectCols ...string) *DMessageEmbed {
+	retobj, err := FindDMessageEmbed(boil.GetDB(), id, selectCols...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -389,35 +389,35 @@ func FindDiscordMessageEmbedGP(id int64, selectCols ...string) *DiscordMessageEm
 	return retobj
 }
 
-// FindDiscordMessageEmbed retrieves a single record by ID with an executor.
+// FindDMessageEmbed retrieves a single record by ID with an executor.
 // If selectCols is empty Find will return all columns.
-func FindDiscordMessageEmbed(exec boil.Executor, id int64, selectCols ...string) (*DiscordMessageEmbed, error) {
-	discordMessageEmbedObj := &DiscordMessageEmbed{}
+func FindDMessageEmbed(exec boil.Executor, id int64, selectCols ...string) (*DMessageEmbed, error) {
+	dMessageEmbedObj := &DMessageEmbed{}
 
 	sel := "*"
 	if len(selectCols) > 0 {
 		sel = strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, selectCols), ",")
 	}
 	query := fmt.Sprintf(
-		"select %s from \"discord_message_embeds\" where \"id\"=$1", sel,
+		"select %s from \"d_message_embeds\" where \"id\"=$1", sel,
 	)
 
 	q := queries.Raw(exec, query, id)
 
-	err := q.Bind(discordMessageEmbedObj)
+	err := q.Bind(dMessageEmbedObj)
 	if err != nil {
 		if errors.Cause(err) == sql.ErrNoRows {
 			return nil, sql.ErrNoRows
 		}
-		return nil, errors.Wrap(err, "models: unable to select from discord_message_embeds")
+		return nil, errors.Wrap(err, "models: unable to select from d_message_embeds")
 	}
 
-	return discordMessageEmbedObj, nil
+	return dMessageEmbedObj, nil
 }
 
-// FindDiscordMessageEmbedP retrieves a single record by ID with an executor, and panics on error.
-func FindDiscordMessageEmbedP(exec boil.Executor, id int64, selectCols ...string) *DiscordMessageEmbed {
-	retobj, err := FindDiscordMessageEmbed(exec, id, selectCols...)
+// FindDMessageEmbedP retrieves a single record by ID with an executor, and panics on error.
+func FindDMessageEmbedP(exec boil.Executor, id int64, selectCols ...string) *DMessageEmbed {
+	retobj, err := FindDMessageEmbed(exec, id, selectCols...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -426,13 +426,13 @@ func FindDiscordMessageEmbedP(exec boil.Executor, id int64, selectCols ...string
 }
 
 // InsertG a single record. See Insert for whitelist behavior description.
-func (o *DiscordMessageEmbed) InsertG(whitelist ...string) error {
+func (o *DMessageEmbed) InsertG(whitelist ...string) error {
 	return o.Insert(boil.GetDB(), whitelist...)
 }
 
 // InsertGP a single record, and panics on error. See Insert for whitelist
 // behavior description.
-func (o *DiscordMessageEmbed) InsertGP(whitelist ...string) {
+func (o *DMessageEmbed) InsertGP(whitelist ...string) {
 	if err := o.Insert(boil.GetDB(), whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -440,7 +440,7 @@ func (o *DiscordMessageEmbed) InsertGP(whitelist ...string) {
 
 // InsertP a single record using an executor, and panics on error. See Insert
 // for whitelist behavior description.
-func (o *DiscordMessageEmbed) InsertP(exec boil.Executor, whitelist ...string) {
+func (o *DMessageEmbed) InsertP(exec boil.Executor, whitelist ...string) {
 	if err := o.Insert(exec, whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -451,38 +451,38 @@ func (o *DiscordMessageEmbed) InsertP(exec boil.Executor, whitelist ...string) {
 // No whitelist behavior: Without a whitelist, columns are inferred by the following rules:
 // - All columns without a default value are included (i.e. name, age)
 // - All columns with a default, but non-zero are included (i.e. health = 75)
-func (o *DiscordMessageEmbed) Insert(exec boil.Executor, whitelist ...string) error {
+func (o *DMessageEmbed) Insert(exec boil.Executor, whitelist ...string) error {
 	if o == nil {
-		return errors.New("models: no discord_message_embeds provided for insertion")
+		return errors.New("models: no d_message_embeds provided for insertion")
 	}
 
 	var err error
 
-	nzDefaults := queries.NonZeroDefaultSet(discordMessageEmbedColumnsWithDefault, o)
+	nzDefaults := queries.NonZeroDefaultSet(dMessageEmbedColumnsWithDefault, o)
 
 	key := makeCacheKey(whitelist, nzDefaults)
-	discordMessageEmbedInsertCacheMut.RLock()
-	cache, cached := discordMessageEmbedInsertCache[key]
-	discordMessageEmbedInsertCacheMut.RUnlock()
+	dMessageEmbedInsertCacheMut.RLock()
+	cache, cached := dMessageEmbedInsertCache[key]
+	dMessageEmbedInsertCacheMut.RUnlock()
 
 	if !cached {
 		wl, returnColumns := strmangle.InsertColumnSet(
-			discordMessageEmbedColumns,
-			discordMessageEmbedColumnsWithDefault,
-			discordMessageEmbedColumnsWithoutDefault,
+			dMessageEmbedColumns,
+			dMessageEmbedColumnsWithDefault,
+			dMessageEmbedColumnsWithoutDefault,
 			nzDefaults,
 			whitelist,
 		)
 
-		cache.valueMapping, err = queries.BindMapping(discordMessageEmbedType, discordMessageEmbedMapping, wl)
+		cache.valueMapping, err = queries.BindMapping(dMessageEmbedType, dMessageEmbedMapping, wl)
 		if err != nil {
 			return err
 		}
-		cache.retMapping, err = queries.BindMapping(discordMessageEmbedType, discordMessageEmbedMapping, returnColumns)
+		cache.retMapping, err = queries.BindMapping(dMessageEmbedType, dMessageEmbedMapping, returnColumns)
 		if err != nil {
 			return err
 		}
-		cache.query = fmt.Sprintf("INSERT INTO \"discord_message_embeds\" (\"%s\") VALUES (%s)", strings.Join(wl, "\",\""), strmangle.Placeholders(dialect.IndexPlaceholders, len(wl), 1, 1))
+		cache.query = fmt.Sprintf("INSERT INTO \"d_message_embeds\" (\"%s\") VALUES (%s)", strings.Join(wl, "\",\""), strmangle.Placeholders(dialect.IndexPlaceholders, len(wl), 1, 1))
 
 		if len(cache.retMapping) != 0 {
 			cache.query += fmt.Sprintf(" RETURNING \"%s\"", strings.Join(returnColumns, "\",\""))
@@ -504,67 +504,67 @@ func (o *DiscordMessageEmbed) Insert(exec boil.Executor, whitelist ...string) er
 	}
 
 	if err != nil {
-		return errors.Wrap(err, "models: unable to insert into discord_message_embeds")
+		return errors.Wrap(err, "models: unable to insert into d_message_embeds")
 	}
 
 	if !cached {
-		discordMessageEmbedInsertCacheMut.Lock()
-		discordMessageEmbedInsertCache[key] = cache
-		discordMessageEmbedInsertCacheMut.Unlock()
+		dMessageEmbedInsertCacheMut.Lock()
+		dMessageEmbedInsertCache[key] = cache
+		dMessageEmbedInsertCacheMut.Unlock()
 	}
 
 	return nil
 }
 
-// UpdateG a single DiscordMessageEmbed record. See Update for
+// UpdateG a single DMessageEmbed record. See Update for
 // whitelist behavior description.
-func (o *DiscordMessageEmbed) UpdateG(whitelist ...string) error {
+func (o *DMessageEmbed) UpdateG(whitelist ...string) error {
 	return o.Update(boil.GetDB(), whitelist...)
 }
 
-// UpdateGP a single DiscordMessageEmbed record.
+// UpdateGP a single DMessageEmbed record.
 // UpdateGP takes a whitelist of column names that should be updated.
 // Panics on error. See Update for whitelist behavior description.
-func (o *DiscordMessageEmbed) UpdateGP(whitelist ...string) {
+func (o *DMessageEmbed) UpdateGP(whitelist ...string) {
 	if err := o.Update(boil.GetDB(), whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// UpdateP uses an executor to update the DiscordMessageEmbed, and panics on error.
+// UpdateP uses an executor to update the DMessageEmbed, and panics on error.
 // See Update for whitelist behavior description.
-func (o *DiscordMessageEmbed) UpdateP(exec boil.Executor, whitelist ...string) {
+func (o *DMessageEmbed) UpdateP(exec boil.Executor, whitelist ...string) {
 	err := o.Update(exec, whitelist...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// Update uses an executor to update the DiscordMessageEmbed.
+// Update uses an executor to update the DMessageEmbed.
 // Whitelist behavior: If a whitelist is provided, only the columns given are updated.
 // No whitelist behavior: Without a whitelist, columns are inferred by the following rules:
 // - All columns are inferred to start with
 // - All primary keys are subtracted from this set
 // Update does not automatically update the record in case of default values. Use .Reload()
 // to refresh the records.
-func (o *DiscordMessageEmbed) Update(exec boil.Executor, whitelist ...string) error {
+func (o *DMessageEmbed) Update(exec boil.Executor, whitelist ...string) error {
 	var err error
 	key := makeCacheKey(whitelist, nil)
-	discordMessageEmbedUpdateCacheMut.RLock()
-	cache, cached := discordMessageEmbedUpdateCache[key]
-	discordMessageEmbedUpdateCacheMut.RUnlock()
+	dMessageEmbedUpdateCacheMut.RLock()
+	cache, cached := dMessageEmbedUpdateCache[key]
+	dMessageEmbedUpdateCacheMut.RUnlock()
 
 	if !cached {
-		wl := strmangle.UpdateColumnSet(discordMessageEmbedColumns, discordMessageEmbedPrimaryKeyColumns, whitelist)
+		wl := strmangle.UpdateColumnSet(dMessageEmbedColumns, dMessageEmbedPrimaryKeyColumns, whitelist)
 		if len(wl) == 0 {
-			return errors.New("models: unable to update discord_message_embeds, could not build whitelist")
+			return errors.New("models: unable to update d_message_embeds, could not build whitelist")
 		}
 
-		cache.query = fmt.Sprintf("UPDATE \"discord_message_embeds\" SET %s WHERE %s",
+		cache.query = fmt.Sprintf("UPDATE \"d_message_embeds\" SET %s WHERE %s",
 			strmangle.SetParamNames("\"", "\"", 1, wl),
-			strmangle.WhereClause("\"", "\"", len(wl)+1, discordMessageEmbedPrimaryKeyColumns),
+			strmangle.WhereClause("\"", "\"", len(wl)+1, dMessageEmbedPrimaryKeyColumns),
 		)
-		cache.valueMapping, err = queries.BindMapping(discordMessageEmbedType, discordMessageEmbedMapping, append(wl, discordMessageEmbedPrimaryKeyColumns...))
+		cache.valueMapping, err = queries.BindMapping(dMessageEmbedType, dMessageEmbedMapping, append(wl, dMessageEmbedPrimaryKeyColumns...))
 		if err != nil {
 			return err
 		}
@@ -579,58 +579,58 @@ func (o *DiscordMessageEmbed) Update(exec boil.Executor, whitelist ...string) er
 
 	_, err = exec.Exec(cache.query, values...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to update discord_message_embeds row")
+		return errors.Wrap(err, "models: unable to update d_message_embeds row")
 	}
 
 	if !cached {
-		discordMessageEmbedUpdateCacheMut.Lock()
-		discordMessageEmbedUpdateCache[key] = cache
-		discordMessageEmbedUpdateCacheMut.Unlock()
+		dMessageEmbedUpdateCacheMut.Lock()
+		dMessageEmbedUpdateCache[key] = cache
+		dMessageEmbedUpdateCacheMut.Unlock()
 	}
 
 	return nil
 }
 
 // UpdateAllP updates all rows with matching column names, and panics on error.
-func (q discordMessageEmbedQuery) UpdateAllP(cols M) {
+func (q dMessageEmbedQuery) UpdateAllP(cols M) {
 	if err := q.UpdateAll(cols); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // UpdateAll updates all rows with the specified column values.
-func (q discordMessageEmbedQuery) UpdateAll(cols M) error {
+func (q dMessageEmbedQuery) UpdateAll(cols M) error {
 	queries.SetUpdate(q.Query, cols)
 
 	_, err := q.Query.Exec()
 	if err != nil {
-		return errors.Wrap(err, "models: unable to update all for discord_message_embeds")
+		return errors.Wrap(err, "models: unable to update all for d_message_embeds")
 	}
 
 	return nil
 }
 
 // UpdateAllG updates all rows with the specified column values.
-func (o DiscordMessageEmbedSlice) UpdateAllG(cols M) error {
+func (o DMessageEmbedSlice) UpdateAllG(cols M) error {
 	return o.UpdateAll(boil.GetDB(), cols)
 }
 
 // UpdateAllGP updates all rows with the specified column values, and panics on error.
-func (o DiscordMessageEmbedSlice) UpdateAllGP(cols M) {
+func (o DMessageEmbedSlice) UpdateAllGP(cols M) {
 	if err := o.UpdateAll(boil.GetDB(), cols); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // UpdateAllP updates all rows with the specified column values, and panics on error.
-func (o DiscordMessageEmbedSlice) UpdateAllP(exec boil.Executor, cols M) {
+func (o DMessageEmbedSlice) UpdateAllP(exec boil.Executor, cols M) {
 	if err := o.UpdateAll(exec, cols); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // UpdateAll updates all rows with the specified column values, using an executor.
-func (o DiscordMessageEmbedSlice) UpdateAll(exec boil.Executor, cols M) error {
+func (o DMessageEmbedSlice) UpdateAll(exec boil.Executor, cols M) error {
 	ln := int64(len(o))
 	if ln == 0 {
 		return nil
@@ -652,14 +652,14 @@ func (o DiscordMessageEmbedSlice) UpdateAll(exec boil.Executor, cols M) error {
 
 	// Append all of the primary key values for each column
 	for _, obj := range o {
-		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), discordMessageEmbedPrimaryKeyMapping)
+		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), dMessageEmbedPrimaryKeyMapping)
 		args = append(args, pkeyArgs...)
 	}
 
 	sql := fmt.Sprintf(
-		"UPDATE \"discord_message_embeds\" SET %s WHERE (\"id\") IN (%s)",
+		"UPDATE \"d_message_embeds\" SET %s WHERE (\"id\") IN (%s)",
 		strmangle.SetParamNames("\"", "\"", 1, colNames),
-		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(discordMessageEmbedPrimaryKeyColumns), len(colNames)+1, len(discordMessageEmbedPrimaryKeyColumns)),
+		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(dMessageEmbedPrimaryKeyColumns), len(colNames)+1, len(dMessageEmbedPrimaryKeyColumns)),
 	)
 
 	if boil.DebugMode {
@@ -669,19 +669,19 @@ func (o DiscordMessageEmbedSlice) UpdateAll(exec boil.Executor, cols M) error {
 
 	_, err := exec.Exec(sql, args...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to update all in discordMessageEmbed slice")
+		return errors.Wrap(err, "models: unable to update all in dMessageEmbed slice")
 	}
 
 	return nil
 }
 
 // UpsertG attempts an insert, and does an update or ignore on conflict.
-func (o *DiscordMessageEmbed) UpsertG(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
+func (o *DMessageEmbed) UpsertG(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
 	return o.Upsert(boil.GetDB(), updateOnConflict, conflictColumns, updateColumns, whitelist...)
 }
 
 // UpsertGP attempts an insert, and does an update or ignore on conflict. Panics on error.
-func (o *DiscordMessageEmbed) UpsertGP(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
+func (o *DMessageEmbed) UpsertGP(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
 	if err := o.Upsert(boil.GetDB(), updateOnConflict, conflictColumns, updateColumns, whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -689,19 +689,19 @@ func (o *DiscordMessageEmbed) UpsertGP(updateOnConflict bool, conflictColumns []
 
 // UpsertP attempts an insert using an executor, and does an update or ignore on conflict.
 // UpsertP panics on error.
-func (o *DiscordMessageEmbed) UpsertP(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
+func (o *DMessageEmbed) UpsertP(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
 	if err := o.Upsert(exec, updateOnConflict, conflictColumns, updateColumns, whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // Upsert attempts an insert using an executor, and does an update or ignore on conflict.
-func (o *DiscordMessageEmbed) Upsert(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
+func (o *DMessageEmbed) Upsert(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
 	if o == nil {
-		return errors.New("models: no discord_message_embeds provided for upsert")
+		return errors.New("models: no d_message_embeds provided for upsert")
 	}
 
-	nzDefaults := queries.NonZeroDefaultSet(discordMessageEmbedColumnsWithDefault, o)
+	nzDefaults := queries.NonZeroDefaultSet(dMessageEmbedColumnsWithDefault, o)
 
 	// Build cache key in-line uglily - mysql vs postgres problems
 	buf := strmangle.GetBuffer()
@@ -729,43 +729,43 @@ func (o *DiscordMessageEmbed) Upsert(exec boil.Executor, updateOnConflict bool, 
 	key := buf.String()
 	strmangle.PutBuffer(buf)
 
-	discordMessageEmbedUpsertCacheMut.RLock()
-	cache, cached := discordMessageEmbedUpsertCache[key]
-	discordMessageEmbedUpsertCacheMut.RUnlock()
+	dMessageEmbedUpsertCacheMut.RLock()
+	cache, cached := dMessageEmbedUpsertCache[key]
+	dMessageEmbedUpsertCacheMut.RUnlock()
 
 	var err error
 
 	if !cached {
 		var ret []string
 		whitelist, ret = strmangle.InsertColumnSet(
-			discordMessageEmbedColumns,
-			discordMessageEmbedColumnsWithDefault,
-			discordMessageEmbedColumnsWithoutDefault,
+			dMessageEmbedColumns,
+			dMessageEmbedColumnsWithDefault,
+			dMessageEmbedColumnsWithoutDefault,
 			nzDefaults,
 			whitelist,
 		)
 		update := strmangle.UpdateColumnSet(
-			discordMessageEmbedColumns,
-			discordMessageEmbedPrimaryKeyColumns,
+			dMessageEmbedColumns,
+			dMessageEmbedPrimaryKeyColumns,
 			updateColumns,
 		)
 		if len(update) == 0 {
-			return errors.New("models: unable to upsert discord_message_embeds, could not build update column list")
+			return errors.New("models: unable to upsert d_message_embeds, could not build update column list")
 		}
 
 		conflict := conflictColumns
 		if len(conflict) == 0 {
-			conflict = make([]string, len(discordMessageEmbedPrimaryKeyColumns))
-			copy(conflict, discordMessageEmbedPrimaryKeyColumns)
+			conflict = make([]string, len(dMessageEmbedPrimaryKeyColumns))
+			copy(conflict, dMessageEmbedPrimaryKeyColumns)
 		}
-		cache.query = queries.BuildUpsertQueryPostgres(dialect, "\"discord_message_embeds\"", updateOnConflict, ret, update, conflict, whitelist)
+		cache.query = queries.BuildUpsertQueryPostgres(dialect, "\"d_message_embeds\"", updateOnConflict, ret, update, conflict, whitelist)
 
-		cache.valueMapping, err = queries.BindMapping(discordMessageEmbedType, discordMessageEmbedMapping, whitelist)
+		cache.valueMapping, err = queries.BindMapping(dMessageEmbedType, dMessageEmbedMapping, whitelist)
 		if err != nil {
 			return err
 		}
 		if len(ret) != 0 {
-			cache.retMapping, err = queries.BindMapping(discordMessageEmbedType, discordMessageEmbedMapping, ret)
+			cache.retMapping, err = queries.BindMapping(dMessageEmbedType, dMessageEmbedMapping, ret)
 			if err != nil {
 				return err
 			}
@@ -793,55 +793,55 @@ func (o *DiscordMessageEmbed) Upsert(exec boil.Executor, updateOnConflict bool, 
 		_, err = exec.Exec(cache.query, vals...)
 	}
 	if err != nil {
-		return errors.Wrap(err, "models: unable to upsert discord_message_embeds")
+		return errors.Wrap(err, "models: unable to upsert d_message_embeds")
 	}
 
 	if !cached {
-		discordMessageEmbedUpsertCacheMut.Lock()
-		discordMessageEmbedUpsertCache[key] = cache
-		discordMessageEmbedUpsertCacheMut.Unlock()
+		dMessageEmbedUpsertCacheMut.Lock()
+		dMessageEmbedUpsertCache[key] = cache
+		dMessageEmbedUpsertCacheMut.Unlock()
 	}
 
 	return nil
 }
 
-// DeleteP deletes a single DiscordMessageEmbed record with an executor.
+// DeleteP deletes a single DMessageEmbed record with an executor.
 // DeleteP will match against the primary key column to find the record to delete.
 // Panics on error.
-func (o *DiscordMessageEmbed) DeleteP(exec boil.Executor) {
+func (o *DMessageEmbed) DeleteP(exec boil.Executor) {
 	if err := o.Delete(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// DeleteG deletes a single DiscordMessageEmbed record.
+// DeleteG deletes a single DMessageEmbed record.
 // DeleteG will match against the primary key column to find the record to delete.
-func (o *DiscordMessageEmbed) DeleteG() error {
+func (o *DMessageEmbed) DeleteG() error {
 	if o == nil {
-		return errors.New("models: no DiscordMessageEmbed provided for deletion")
+		return errors.New("models: no DMessageEmbed provided for deletion")
 	}
 
 	return o.Delete(boil.GetDB())
 }
 
-// DeleteGP deletes a single DiscordMessageEmbed record.
+// DeleteGP deletes a single DMessageEmbed record.
 // DeleteGP will match against the primary key column to find the record to delete.
 // Panics on error.
-func (o *DiscordMessageEmbed) DeleteGP() {
+func (o *DMessageEmbed) DeleteGP() {
 	if err := o.DeleteG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// Delete deletes a single DiscordMessageEmbed record with an executor.
+// Delete deletes a single DMessageEmbed record with an executor.
 // Delete will match against the primary key column to find the record to delete.
-func (o *DiscordMessageEmbed) Delete(exec boil.Executor) error {
+func (o *DMessageEmbed) Delete(exec boil.Executor) error {
 	if o == nil {
-		return errors.New("models: no DiscordMessageEmbed provided for delete")
+		return errors.New("models: no DMessageEmbed provided for delete")
 	}
 
-	args := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(o)), discordMessageEmbedPrimaryKeyMapping)
-	sql := "DELETE FROM \"discord_message_embeds\" WHERE \"id\"=$1"
+	args := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(o)), dMessageEmbedPrimaryKeyMapping)
+	sql := "DELETE FROM \"d_message_embeds\" WHERE \"id\"=$1"
 
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, sql)
@@ -850,61 +850,61 @@ func (o *DiscordMessageEmbed) Delete(exec boil.Executor) error {
 
 	_, err := exec.Exec(sql, args...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to delete from discord_message_embeds")
+		return errors.Wrap(err, "models: unable to delete from d_message_embeds")
 	}
 
 	return nil
 }
 
 // DeleteAllP deletes all rows, and panics on error.
-func (q discordMessageEmbedQuery) DeleteAllP() {
+func (q dMessageEmbedQuery) DeleteAllP() {
 	if err := q.DeleteAll(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // DeleteAll deletes all matching rows.
-func (q discordMessageEmbedQuery) DeleteAll() error {
+func (q dMessageEmbedQuery) DeleteAll() error {
 	if q.Query == nil {
-		return errors.New("models: no discordMessageEmbedQuery provided for delete all")
+		return errors.New("models: no dMessageEmbedQuery provided for delete all")
 	}
 
 	queries.SetDelete(q.Query)
 
 	_, err := q.Query.Exec()
 	if err != nil {
-		return errors.Wrap(err, "models: unable to delete all from discord_message_embeds")
+		return errors.Wrap(err, "models: unable to delete all from d_message_embeds")
 	}
 
 	return nil
 }
 
 // DeleteAllGP deletes all rows in the slice, and panics on error.
-func (o DiscordMessageEmbedSlice) DeleteAllGP() {
+func (o DMessageEmbedSlice) DeleteAllGP() {
 	if err := o.DeleteAllG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // DeleteAllG deletes all rows in the slice.
-func (o DiscordMessageEmbedSlice) DeleteAllG() error {
+func (o DMessageEmbedSlice) DeleteAllG() error {
 	if o == nil {
-		return errors.New("models: no DiscordMessageEmbed slice provided for delete all")
+		return errors.New("models: no DMessageEmbed slice provided for delete all")
 	}
 	return o.DeleteAll(boil.GetDB())
 }
 
 // DeleteAllP deletes all rows in the slice, using an executor, and panics on error.
-func (o DiscordMessageEmbedSlice) DeleteAllP(exec boil.Executor) {
+func (o DMessageEmbedSlice) DeleteAllP(exec boil.Executor) {
 	if err := o.DeleteAll(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // DeleteAll deletes all rows in the slice, using an executor.
-func (o DiscordMessageEmbedSlice) DeleteAll(exec boil.Executor) error {
+func (o DMessageEmbedSlice) DeleteAll(exec boil.Executor) error {
 	if o == nil {
-		return errors.New("models: no DiscordMessageEmbed slice provided for delete all")
+		return errors.New("models: no DMessageEmbed slice provided for delete all")
 	}
 
 	if len(o) == 0 {
@@ -913,14 +913,14 @@ func (o DiscordMessageEmbedSlice) DeleteAll(exec boil.Executor) error {
 
 	var args []interface{}
 	for _, obj := range o {
-		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), discordMessageEmbedPrimaryKeyMapping)
+		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), dMessageEmbedPrimaryKeyMapping)
 		args = append(args, pkeyArgs...)
 	}
 
 	sql := fmt.Sprintf(
-		"DELETE FROM \"discord_message_embeds\" WHERE (%s) IN (%s)",
-		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, discordMessageEmbedPrimaryKeyColumns), ","),
-		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(discordMessageEmbedPrimaryKeyColumns), 1, len(discordMessageEmbedPrimaryKeyColumns)),
+		"DELETE FROM \"d_message_embeds\" WHERE (%s) IN (%s)",
+		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, dMessageEmbedPrimaryKeyColumns), ","),
+		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(dMessageEmbedPrimaryKeyColumns), 1, len(dMessageEmbedPrimaryKeyColumns)),
 	)
 
 	if boil.DebugMode {
@@ -930,30 +930,30 @@ func (o DiscordMessageEmbedSlice) DeleteAll(exec boil.Executor) error {
 
 	_, err := exec.Exec(sql, args...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to delete all from discordMessageEmbed slice")
+		return errors.Wrap(err, "models: unable to delete all from dMessageEmbed slice")
 	}
 
 	return nil
 }
 
 // ReloadGP refetches the object from the database and panics on error.
-func (o *DiscordMessageEmbed) ReloadGP() {
+func (o *DMessageEmbed) ReloadGP() {
 	if err := o.ReloadG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // ReloadP refetches the object from the database with an executor. Panics on error.
-func (o *DiscordMessageEmbed) ReloadP(exec boil.Executor) {
+func (o *DMessageEmbed) ReloadP(exec boil.Executor) {
 	if err := o.Reload(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // ReloadG refetches the object from the database using the primary keys.
-func (o *DiscordMessageEmbed) ReloadG() error {
+func (o *DMessageEmbed) ReloadG() error {
 	if o == nil {
-		return errors.New("models: no DiscordMessageEmbed provided for reload")
+		return errors.New("models: no DMessageEmbed provided for reload")
 	}
 
 	return o.Reload(boil.GetDB())
@@ -961,8 +961,8 @@ func (o *DiscordMessageEmbed) ReloadG() error {
 
 // Reload refetches the object from the database
 // using the primary keys with an executor.
-func (o *DiscordMessageEmbed) Reload(exec boil.Executor) error {
-	ret, err := FindDiscordMessageEmbed(exec, o.ID)
+func (o *DMessageEmbed) Reload(exec boil.Executor) error {
+	ret, err := FindDMessageEmbed(exec, o.ID)
 	if err != nil {
 		return err
 	}
@@ -974,7 +974,7 @@ func (o *DiscordMessageEmbed) Reload(exec boil.Executor) error {
 // ReloadAllGP refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
 // Panics on error.
-func (o *DiscordMessageEmbedSlice) ReloadAllGP() {
+func (o *DMessageEmbedSlice) ReloadAllGP() {
 	if err := o.ReloadAllG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -983,7 +983,7 @@ func (o *DiscordMessageEmbedSlice) ReloadAllGP() {
 // ReloadAllP refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
 // Panics on error.
-func (o *DiscordMessageEmbedSlice) ReloadAllP(exec boil.Executor) {
+func (o *DMessageEmbedSlice) ReloadAllP(exec boil.Executor) {
 	if err := o.ReloadAll(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -991,9 +991,9 @@ func (o *DiscordMessageEmbedSlice) ReloadAllP(exec boil.Executor) {
 
 // ReloadAllG refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
-func (o *DiscordMessageEmbedSlice) ReloadAllG() error {
+func (o *DMessageEmbedSlice) ReloadAllG() error {
 	if o == nil {
-		return errors.New("models: empty DiscordMessageEmbedSlice provided for reload all")
+		return errors.New("models: empty DMessageEmbedSlice provided for reload all")
 	}
 
 	return o.ReloadAll(boil.GetDB())
@@ -1001,41 +1001,41 @@ func (o *DiscordMessageEmbedSlice) ReloadAllG() error {
 
 // ReloadAll refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
-func (o *DiscordMessageEmbedSlice) ReloadAll(exec boil.Executor) error {
+func (o *DMessageEmbedSlice) ReloadAll(exec boil.Executor) error {
 	if o == nil || len(*o) == 0 {
 		return nil
 	}
 
-	discordMessageEmbeds := DiscordMessageEmbedSlice{}
+	dMessageEmbeds := DMessageEmbedSlice{}
 	var args []interface{}
 	for _, obj := range *o {
-		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), discordMessageEmbedPrimaryKeyMapping)
+		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), dMessageEmbedPrimaryKeyMapping)
 		args = append(args, pkeyArgs...)
 	}
 
 	sql := fmt.Sprintf(
-		"SELECT \"discord_message_embeds\".* FROM \"discord_message_embeds\" WHERE (%s) IN (%s)",
-		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, discordMessageEmbedPrimaryKeyColumns), ","),
-		strmangle.Placeholders(dialect.IndexPlaceholders, len(*o)*len(discordMessageEmbedPrimaryKeyColumns), 1, len(discordMessageEmbedPrimaryKeyColumns)),
+		"SELECT \"d_message_embeds\".* FROM \"d_message_embeds\" WHERE (%s) IN (%s)",
+		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, dMessageEmbedPrimaryKeyColumns), ","),
+		strmangle.Placeholders(dialect.IndexPlaceholders, len(*o)*len(dMessageEmbedPrimaryKeyColumns), 1, len(dMessageEmbedPrimaryKeyColumns)),
 	)
 
 	q := queries.Raw(exec, sql, args...)
 
-	err := q.Bind(&discordMessageEmbeds)
+	err := q.Bind(&dMessageEmbeds)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to reload all in DiscordMessageEmbedSlice")
+		return errors.Wrap(err, "models: unable to reload all in DMessageEmbedSlice")
 	}
 
-	*o = discordMessageEmbeds
+	*o = dMessageEmbeds
 
 	return nil
 }
 
-// DiscordMessageEmbedExists checks if the DiscordMessageEmbed row exists.
-func DiscordMessageEmbedExists(exec boil.Executor, id int64) (bool, error) {
+// DMessageEmbedExists checks if the DMessageEmbed row exists.
+func DMessageEmbedExists(exec boil.Executor, id int64) (bool, error) {
 	var exists bool
 
-	sql := "select exists(select 1 from \"discord_message_embeds\" where \"id\"=$1 limit 1)"
+	sql := "select exists(select 1 from \"d_message_embeds\" where \"id\"=$1 limit 1)"
 
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, sql)
@@ -1046,20 +1046,20 @@ func DiscordMessageEmbedExists(exec boil.Executor, id int64) (bool, error) {
 
 	err := row.Scan(&exists)
 	if err != nil {
-		return false, errors.Wrap(err, "models: unable to check if discord_message_embeds exists")
+		return false, errors.Wrap(err, "models: unable to check if d_message_embeds exists")
 	}
 
 	return exists, nil
 }
 
-// DiscordMessageEmbedExistsG checks if the DiscordMessageEmbed row exists.
-func DiscordMessageEmbedExistsG(id int64) (bool, error) {
-	return DiscordMessageEmbedExists(boil.GetDB(), id)
+// DMessageEmbedExistsG checks if the DMessageEmbed row exists.
+func DMessageEmbedExistsG(id int64) (bool, error) {
+	return DMessageEmbedExists(boil.GetDB(), id)
 }
 
-// DiscordMessageEmbedExistsGP checks if the DiscordMessageEmbed row exists. Panics on error.
-func DiscordMessageEmbedExistsGP(id int64) bool {
-	e, err := DiscordMessageEmbedExists(boil.GetDB(), id)
+// DMessageEmbedExistsGP checks if the DMessageEmbed row exists. Panics on error.
+func DMessageEmbedExistsGP(id int64) bool {
+	e, err := DMessageEmbedExists(boil.GetDB(), id)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -1067,9 +1067,9 @@ func DiscordMessageEmbedExistsGP(id int64) bool {
 	return e
 }
 
-// DiscordMessageEmbedExistsP checks if the DiscordMessageEmbed row exists. Panics on error.
-func DiscordMessageEmbedExistsP(exec boil.Executor, id int64) bool {
-	e, err := DiscordMessageEmbedExists(exec, id)
+// DMessageEmbedExistsP checks if the DMessageEmbed row exists. Panics on error.
+func DMessageEmbedExistsP(exec boil.Executor, id int64) bool {
+	e, err := DMessageEmbedExists(exec, id)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}

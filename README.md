@@ -6,6 +6,8 @@ dsqlstate is a discord state tracker that uses postgres. For those that do not w
 
 Currently only supports postgres, this may or may not change in the future, probably not unless someone other than me makes the appropriate changes.
 
+You might thing that means you can have multiple bots use the same database but that is not yet supported, what happens when bot 1 leaves a guild but bot 2 is still in it? without the bots communicating to eachother or another join table or an array in the guilds table it would be marked as `left` from both bots, may be added in the future but now the focus is to get it working.
+
 There are a lot of benefits to keeping the state in a proper database, being able to inspect the state and all helps when you're hunting bugs in your code.
 
 The biggest downside is probably the initial load, it has to invalidate all state data between `ready`'s because stuff may have changed in the meantime and we did not receive events about it.

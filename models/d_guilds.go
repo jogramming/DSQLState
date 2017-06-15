@@ -17,11 +17,12 @@ import (
 	"gopkg.in/nullbio/null.v6"
 )
 
-// DiscordGuild is an object representing the database table.
-type DiscordGuild struct {
+// DGuild is an object representing the database table.
+type DGuild struct {
 	ID                          int64     `boil:"id" json:"id" toml:"id" yaml:"id"`
 	CreatedAt                   time.Time `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
 	LeftAt                      null.Time `boil:"left_at" json:"left_at,omitempty" toml:"left_at" yaml:"left_at,omitempty"`
+	Synced                      bool      `boil:"synced" json:"synced" toml:"synced" yaml:"synced"`
 	Name                        string    `boil:"name" json:"name" toml:"name" yaml:"name"`
 	Icon                        string    `boil:"icon" json:"icon" toml:"icon" yaml:"icon"`
 	Region                      string    `boil:"region" json:"region" toml:"region" yaml:"region"`
@@ -36,45 +37,45 @@ type DiscordGuild struct {
 	Large                       bool      `boil:"large" json:"large" toml:"large" yaml:"large"`
 	DefaultMessageNotifications int16     `boil:"default_message_notifications" json:"default_message_notifications" toml:"default_message_notifications" yaml:"default_message_notifications"`
 
-	R *discordGuildR `boil:"-" json:"-" toml:"-" yaml:"-"`
-	L discordGuildL  `boil:"-" json:"-" toml:"-" yaml:"-"`
+	R *dGuildR `boil:"-" json:"-" toml:"-" yaml:"-"`
+	L dGuildL  `boil:"-" json:"-" toml:"-" yaml:"-"`
 }
 
-// discordGuildR is where relationships are stored.
-type discordGuildR struct {
+// dGuildR is where relationships are stored.
+type dGuildR struct {
 }
 
-// discordGuildL is where Load methods for each relationship are stored.
-type discordGuildL struct{}
+// dGuildL is where Load methods for each relationship are stored.
+type dGuildL struct{}
 
 var (
-	discordGuildColumns               = []string{"id", "created_at", "left_at", "name", "icon", "region", "afk_channel_id", "embed_channel_id", "owner_id", "splash", "afk_timeout", "member_count", "verification_level", "embed_enabled", "large", "default_message_notifications"}
-	discordGuildColumnsWithoutDefault = []string{"id", "created_at", "left_at", "name", "icon", "region", "afk_channel_id", "embed_channel_id", "owner_id", "splash", "afk_timeout", "member_count", "verification_level", "embed_enabled", "large", "default_message_notifications"}
-	discordGuildColumnsWithDefault    = []string{}
-	discordGuildPrimaryKeyColumns     = []string{"id"}
+	dGuildColumns               = []string{"id", "created_at", "left_at", "synced", "name", "icon", "region", "afk_channel_id", "embed_channel_id", "owner_id", "splash", "afk_timeout", "member_count", "verification_level", "embed_enabled", "large", "default_message_notifications"}
+	dGuildColumnsWithoutDefault = []string{"id", "created_at", "left_at", "synced", "name", "icon", "region", "afk_channel_id", "embed_channel_id", "owner_id", "splash", "afk_timeout", "member_count", "verification_level", "embed_enabled", "large", "default_message_notifications"}
+	dGuildColumnsWithDefault    = []string{}
+	dGuildPrimaryKeyColumns     = []string{"id"}
 )
 
 type (
-	// DiscordGuildSlice is an alias for a slice of pointers to DiscordGuild.
-	// This should generally be used opposed to []DiscordGuild.
-	DiscordGuildSlice []*DiscordGuild
+	// DGuildSlice is an alias for a slice of pointers to DGuild.
+	// This should generally be used opposed to []DGuild.
+	DGuildSlice []*DGuild
 
-	discordGuildQuery struct {
+	dGuildQuery struct {
 		*queries.Query
 	}
 )
 
 // Cache for insert, update and upsert
 var (
-	discordGuildType                 = reflect.TypeOf(&DiscordGuild{})
-	discordGuildMapping              = queries.MakeStructMapping(discordGuildType)
-	discordGuildPrimaryKeyMapping, _ = queries.BindMapping(discordGuildType, discordGuildMapping, discordGuildPrimaryKeyColumns)
-	discordGuildInsertCacheMut       sync.RWMutex
-	discordGuildInsertCache          = make(map[string]insertCache)
-	discordGuildUpdateCacheMut       sync.RWMutex
-	discordGuildUpdateCache          = make(map[string]updateCache)
-	discordGuildUpsertCacheMut       sync.RWMutex
-	discordGuildUpsertCache          = make(map[string]insertCache)
+	dGuildType                 = reflect.TypeOf(&DGuild{})
+	dGuildMapping              = queries.MakeStructMapping(dGuildType)
+	dGuildPrimaryKeyMapping, _ = queries.BindMapping(dGuildType, dGuildMapping, dGuildPrimaryKeyColumns)
+	dGuildInsertCacheMut       sync.RWMutex
+	dGuildInsertCache          = make(map[string]insertCache)
+	dGuildUpdateCacheMut       sync.RWMutex
+	dGuildUpdateCache          = make(map[string]updateCache)
+	dGuildUpsertCacheMut       sync.RWMutex
+	dGuildUpsertCache          = make(map[string]insertCache)
 )
 
 var (
@@ -84,8 +85,8 @@ var (
 	_ = bytes.MinRead
 )
 
-// OneP returns a single discordGuild record from the query, and panics on error.
-func (q discordGuildQuery) OneP() *DiscordGuild {
+// OneP returns a single dGuild record from the query, and panics on error.
+func (q dGuildQuery) OneP() *DGuild {
 	o, err := q.One()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -94,9 +95,9 @@ func (q discordGuildQuery) OneP() *DiscordGuild {
 	return o
 }
 
-// One returns a single discordGuild record from the query.
-func (q discordGuildQuery) One() (*DiscordGuild, error) {
-	o := &DiscordGuild{}
+// One returns a single dGuild record from the query.
+func (q dGuildQuery) One() (*DGuild, error) {
+	o := &DGuild{}
 
 	queries.SetLimit(q.Query, 1)
 
@@ -105,14 +106,14 @@ func (q discordGuildQuery) One() (*DiscordGuild, error) {
 		if errors.Cause(err) == sql.ErrNoRows {
 			return nil, sql.ErrNoRows
 		}
-		return nil, errors.Wrap(err, "models: failed to execute a one query for discord_guilds")
+		return nil, errors.Wrap(err, "models: failed to execute a one query for d_guilds")
 	}
 
 	return o, nil
 }
 
-// AllP returns all DiscordGuild records from the query, and panics on error.
-func (q discordGuildQuery) AllP() DiscordGuildSlice {
+// AllP returns all DGuild records from the query, and panics on error.
+func (q dGuildQuery) AllP() DGuildSlice {
 	o, err := q.All()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -121,20 +122,20 @@ func (q discordGuildQuery) AllP() DiscordGuildSlice {
 	return o
 }
 
-// All returns all DiscordGuild records from the query.
-func (q discordGuildQuery) All() (DiscordGuildSlice, error) {
-	var o DiscordGuildSlice
+// All returns all DGuild records from the query.
+func (q dGuildQuery) All() (DGuildSlice, error) {
+	var o DGuildSlice
 
 	err := q.Bind(&o)
 	if err != nil {
-		return nil, errors.Wrap(err, "models: failed to assign all query results to DiscordGuild slice")
+		return nil, errors.Wrap(err, "models: failed to assign all query results to DGuild slice")
 	}
 
 	return o, nil
 }
 
-// CountP returns the count of all DiscordGuild records in the query, and panics on error.
-func (q discordGuildQuery) CountP() int64 {
+// CountP returns the count of all DGuild records in the query, and panics on error.
+func (q dGuildQuery) CountP() int64 {
 	c, err := q.Count()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -143,8 +144,8 @@ func (q discordGuildQuery) CountP() int64 {
 	return c
 }
 
-// Count returns the count of all DiscordGuild records in the query.
-func (q discordGuildQuery) Count() (int64, error) {
+// Count returns the count of all DGuild records in the query.
+func (q dGuildQuery) Count() (int64, error) {
 	var count int64
 
 	queries.SetSelect(q.Query, nil)
@@ -152,14 +153,14 @@ func (q discordGuildQuery) Count() (int64, error) {
 
 	err := q.Query.QueryRow().Scan(&count)
 	if err != nil {
-		return 0, errors.Wrap(err, "models: failed to count discord_guilds rows")
+		return 0, errors.Wrap(err, "models: failed to count d_guilds rows")
 	}
 
 	return count, nil
 }
 
 // Exists checks if the row exists in the table, and panics on error.
-func (q discordGuildQuery) ExistsP() bool {
+func (q dGuildQuery) ExistsP() bool {
 	e, err := q.Exists()
 	if err != nil {
 		panic(boil.WrapErr(err))
@@ -169,7 +170,7 @@ func (q discordGuildQuery) ExistsP() bool {
 }
 
 // Exists checks if the row exists in the table.
-func (q discordGuildQuery) Exists() (bool, error) {
+func (q dGuildQuery) Exists() (bool, error) {
 	var count int64
 
 	queries.SetCount(q.Query)
@@ -177,31 +178,31 @@ func (q discordGuildQuery) Exists() (bool, error) {
 
 	err := q.Query.QueryRow().Scan(&count)
 	if err != nil {
-		return false, errors.Wrap(err, "models: failed to check if discord_guilds exists")
+		return false, errors.Wrap(err, "models: failed to check if d_guilds exists")
 	}
 
 	return count > 0, nil
 }
 
-// DiscordGuildsG retrieves all records.
-func DiscordGuildsG(mods ...qm.QueryMod) discordGuildQuery {
-	return DiscordGuilds(boil.GetDB(), mods...)
+// DGuildsG retrieves all records.
+func DGuildsG(mods ...qm.QueryMod) dGuildQuery {
+	return DGuilds(boil.GetDB(), mods...)
 }
 
-// DiscordGuilds retrieves all the records using an executor.
-func DiscordGuilds(exec boil.Executor, mods ...qm.QueryMod) discordGuildQuery {
-	mods = append(mods, qm.From("\"discord_guilds\""))
-	return discordGuildQuery{NewQuery(exec, mods...)}
+// DGuilds retrieves all the records using an executor.
+func DGuilds(exec boil.Executor, mods ...qm.QueryMod) dGuildQuery {
+	mods = append(mods, qm.From("\"d_guilds\""))
+	return dGuildQuery{NewQuery(exec, mods...)}
 }
 
-// FindDiscordGuildG retrieves a single record by ID.
-func FindDiscordGuildG(id int64, selectCols ...string) (*DiscordGuild, error) {
-	return FindDiscordGuild(boil.GetDB(), id, selectCols...)
+// FindDGuildG retrieves a single record by ID.
+func FindDGuildG(id int64, selectCols ...string) (*DGuild, error) {
+	return FindDGuild(boil.GetDB(), id, selectCols...)
 }
 
-// FindDiscordGuildGP retrieves a single record by ID, and panics on error.
-func FindDiscordGuildGP(id int64, selectCols ...string) *DiscordGuild {
-	retobj, err := FindDiscordGuild(boil.GetDB(), id, selectCols...)
+// FindDGuildGP retrieves a single record by ID, and panics on error.
+func FindDGuildGP(id int64, selectCols ...string) *DGuild {
+	retobj, err := FindDGuild(boil.GetDB(), id, selectCols...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -209,35 +210,35 @@ func FindDiscordGuildGP(id int64, selectCols ...string) *DiscordGuild {
 	return retobj
 }
 
-// FindDiscordGuild retrieves a single record by ID with an executor.
+// FindDGuild retrieves a single record by ID with an executor.
 // If selectCols is empty Find will return all columns.
-func FindDiscordGuild(exec boil.Executor, id int64, selectCols ...string) (*DiscordGuild, error) {
-	discordGuildObj := &DiscordGuild{}
+func FindDGuild(exec boil.Executor, id int64, selectCols ...string) (*DGuild, error) {
+	dGuildObj := &DGuild{}
 
 	sel := "*"
 	if len(selectCols) > 0 {
 		sel = strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, selectCols), ",")
 	}
 	query := fmt.Sprintf(
-		"select %s from \"discord_guilds\" where \"id\"=$1", sel,
+		"select %s from \"d_guilds\" where \"id\"=$1", sel,
 	)
 
 	q := queries.Raw(exec, query, id)
 
-	err := q.Bind(discordGuildObj)
+	err := q.Bind(dGuildObj)
 	if err != nil {
 		if errors.Cause(err) == sql.ErrNoRows {
 			return nil, sql.ErrNoRows
 		}
-		return nil, errors.Wrap(err, "models: unable to select from discord_guilds")
+		return nil, errors.Wrap(err, "models: unable to select from d_guilds")
 	}
 
-	return discordGuildObj, nil
+	return dGuildObj, nil
 }
 
-// FindDiscordGuildP retrieves a single record by ID with an executor, and panics on error.
-func FindDiscordGuildP(exec boil.Executor, id int64, selectCols ...string) *DiscordGuild {
-	retobj, err := FindDiscordGuild(exec, id, selectCols...)
+// FindDGuildP retrieves a single record by ID with an executor, and panics on error.
+func FindDGuildP(exec boil.Executor, id int64, selectCols ...string) *DGuild {
+	retobj, err := FindDGuild(exec, id, selectCols...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -246,13 +247,13 @@ func FindDiscordGuildP(exec boil.Executor, id int64, selectCols ...string) *Disc
 }
 
 // InsertG a single record. See Insert for whitelist behavior description.
-func (o *DiscordGuild) InsertG(whitelist ...string) error {
+func (o *DGuild) InsertG(whitelist ...string) error {
 	return o.Insert(boil.GetDB(), whitelist...)
 }
 
 // InsertGP a single record, and panics on error. See Insert for whitelist
 // behavior description.
-func (o *DiscordGuild) InsertGP(whitelist ...string) {
+func (o *DGuild) InsertGP(whitelist ...string) {
 	if err := o.Insert(boil.GetDB(), whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -260,7 +261,7 @@ func (o *DiscordGuild) InsertGP(whitelist ...string) {
 
 // InsertP a single record using an executor, and panics on error. See Insert
 // for whitelist behavior description.
-func (o *DiscordGuild) InsertP(exec boil.Executor, whitelist ...string) {
+func (o *DGuild) InsertP(exec boil.Executor, whitelist ...string) {
 	if err := o.Insert(exec, whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -271,9 +272,9 @@ func (o *DiscordGuild) InsertP(exec boil.Executor, whitelist ...string) {
 // No whitelist behavior: Without a whitelist, columns are inferred by the following rules:
 // - All columns without a default value are included (i.e. name, age)
 // - All columns with a default, but non-zero are included (i.e. health = 75)
-func (o *DiscordGuild) Insert(exec boil.Executor, whitelist ...string) error {
+func (o *DGuild) Insert(exec boil.Executor, whitelist ...string) error {
 	if o == nil {
-		return errors.New("models: no discord_guilds provided for insertion")
+		return errors.New("models: no d_guilds provided for insertion")
 	}
 
 	var err error
@@ -283,31 +284,31 @@ func (o *DiscordGuild) Insert(exec boil.Executor, whitelist ...string) error {
 		o.CreatedAt = currTime
 	}
 
-	nzDefaults := queries.NonZeroDefaultSet(discordGuildColumnsWithDefault, o)
+	nzDefaults := queries.NonZeroDefaultSet(dGuildColumnsWithDefault, o)
 
 	key := makeCacheKey(whitelist, nzDefaults)
-	discordGuildInsertCacheMut.RLock()
-	cache, cached := discordGuildInsertCache[key]
-	discordGuildInsertCacheMut.RUnlock()
+	dGuildInsertCacheMut.RLock()
+	cache, cached := dGuildInsertCache[key]
+	dGuildInsertCacheMut.RUnlock()
 
 	if !cached {
 		wl, returnColumns := strmangle.InsertColumnSet(
-			discordGuildColumns,
-			discordGuildColumnsWithDefault,
-			discordGuildColumnsWithoutDefault,
+			dGuildColumns,
+			dGuildColumnsWithDefault,
+			dGuildColumnsWithoutDefault,
 			nzDefaults,
 			whitelist,
 		)
 
-		cache.valueMapping, err = queries.BindMapping(discordGuildType, discordGuildMapping, wl)
+		cache.valueMapping, err = queries.BindMapping(dGuildType, dGuildMapping, wl)
 		if err != nil {
 			return err
 		}
-		cache.retMapping, err = queries.BindMapping(discordGuildType, discordGuildMapping, returnColumns)
+		cache.retMapping, err = queries.BindMapping(dGuildType, dGuildMapping, returnColumns)
 		if err != nil {
 			return err
 		}
-		cache.query = fmt.Sprintf("INSERT INTO \"discord_guilds\" (\"%s\") VALUES (%s)", strings.Join(wl, "\",\""), strmangle.Placeholders(dialect.IndexPlaceholders, len(wl), 1, 1))
+		cache.query = fmt.Sprintf("INSERT INTO \"d_guilds\" (\"%s\") VALUES (%s)", strings.Join(wl, "\",\""), strmangle.Placeholders(dialect.IndexPlaceholders, len(wl), 1, 1))
 
 		if len(cache.retMapping) != 0 {
 			cache.query += fmt.Sprintf(" RETURNING \"%s\"", strings.Join(returnColumns, "\",\""))
@@ -329,67 +330,67 @@ func (o *DiscordGuild) Insert(exec boil.Executor, whitelist ...string) error {
 	}
 
 	if err != nil {
-		return errors.Wrap(err, "models: unable to insert into discord_guilds")
+		return errors.Wrap(err, "models: unable to insert into d_guilds")
 	}
 
 	if !cached {
-		discordGuildInsertCacheMut.Lock()
-		discordGuildInsertCache[key] = cache
-		discordGuildInsertCacheMut.Unlock()
+		dGuildInsertCacheMut.Lock()
+		dGuildInsertCache[key] = cache
+		dGuildInsertCacheMut.Unlock()
 	}
 
 	return nil
 }
 
-// UpdateG a single DiscordGuild record. See Update for
+// UpdateG a single DGuild record. See Update for
 // whitelist behavior description.
-func (o *DiscordGuild) UpdateG(whitelist ...string) error {
+func (o *DGuild) UpdateG(whitelist ...string) error {
 	return o.Update(boil.GetDB(), whitelist...)
 }
 
-// UpdateGP a single DiscordGuild record.
+// UpdateGP a single DGuild record.
 // UpdateGP takes a whitelist of column names that should be updated.
 // Panics on error. See Update for whitelist behavior description.
-func (o *DiscordGuild) UpdateGP(whitelist ...string) {
+func (o *DGuild) UpdateGP(whitelist ...string) {
 	if err := o.Update(boil.GetDB(), whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// UpdateP uses an executor to update the DiscordGuild, and panics on error.
+// UpdateP uses an executor to update the DGuild, and panics on error.
 // See Update for whitelist behavior description.
-func (o *DiscordGuild) UpdateP(exec boil.Executor, whitelist ...string) {
+func (o *DGuild) UpdateP(exec boil.Executor, whitelist ...string) {
 	err := o.Update(exec, whitelist...)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// Update uses an executor to update the DiscordGuild.
+// Update uses an executor to update the DGuild.
 // Whitelist behavior: If a whitelist is provided, only the columns given are updated.
 // No whitelist behavior: Without a whitelist, columns are inferred by the following rules:
 // - All columns are inferred to start with
 // - All primary keys are subtracted from this set
 // Update does not automatically update the record in case of default values. Use .Reload()
 // to refresh the records.
-func (o *DiscordGuild) Update(exec boil.Executor, whitelist ...string) error {
+func (o *DGuild) Update(exec boil.Executor, whitelist ...string) error {
 	var err error
 	key := makeCacheKey(whitelist, nil)
-	discordGuildUpdateCacheMut.RLock()
-	cache, cached := discordGuildUpdateCache[key]
-	discordGuildUpdateCacheMut.RUnlock()
+	dGuildUpdateCacheMut.RLock()
+	cache, cached := dGuildUpdateCache[key]
+	dGuildUpdateCacheMut.RUnlock()
 
 	if !cached {
-		wl := strmangle.UpdateColumnSet(discordGuildColumns, discordGuildPrimaryKeyColumns, whitelist)
+		wl := strmangle.UpdateColumnSet(dGuildColumns, dGuildPrimaryKeyColumns, whitelist)
 		if len(wl) == 0 {
-			return errors.New("models: unable to update discord_guilds, could not build whitelist")
+			return errors.New("models: unable to update d_guilds, could not build whitelist")
 		}
 
-		cache.query = fmt.Sprintf("UPDATE \"discord_guilds\" SET %s WHERE %s",
+		cache.query = fmt.Sprintf("UPDATE \"d_guilds\" SET %s WHERE %s",
 			strmangle.SetParamNames("\"", "\"", 1, wl),
-			strmangle.WhereClause("\"", "\"", len(wl)+1, discordGuildPrimaryKeyColumns),
+			strmangle.WhereClause("\"", "\"", len(wl)+1, dGuildPrimaryKeyColumns),
 		)
-		cache.valueMapping, err = queries.BindMapping(discordGuildType, discordGuildMapping, append(wl, discordGuildPrimaryKeyColumns...))
+		cache.valueMapping, err = queries.BindMapping(dGuildType, dGuildMapping, append(wl, dGuildPrimaryKeyColumns...))
 		if err != nil {
 			return err
 		}
@@ -404,58 +405,58 @@ func (o *DiscordGuild) Update(exec boil.Executor, whitelist ...string) error {
 
 	_, err = exec.Exec(cache.query, values...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to update discord_guilds row")
+		return errors.Wrap(err, "models: unable to update d_guilds row")
 	}
 
 	if !cached {
-		discordGuildUpdateCacheMut.Lock()
-		discordGuildUpdateCache[key] = cache
-		discordGuildUpdateCacheMut.Unlock()
+		dGuildUpdateCacheMut.Lock()
+		dGuildUpdateCache[key] = cache
+		dGuildUpdateCacheMut.Unlock()
 	}
 
 	return nil
 }
 
 // UpdateAllP updates all rows with matching column names, and panics on error.
-func (q discordGuildQuery) UpdateAllP(cols M) {
+func (q dGuildQuery) UpdateAllP(cols M) {
 	if err := q.UpdateAll(cols); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // UpdateAll updates all rows with the specified column values.
-func (q discordGuildQuery) UpdateAll(cols M) error {
+func (q dGuildQuery) UpdateAll(cols M) error {
 	queries.SetUpdate(q.Query, cols)
 
 	_, err := q.Query.Exec()
 	if err != nil {
-		return errors.Wrap(err, "models: unable to update all for discord_guilds")
+		return errors.Wrap(err, "models: unable to update all for d_guilds")
 	}
 
 	return nil
 }
 
 // UpdateAllG updates all rows with the specified column values.
-func (o DiscordGuildSlice) UpdateAllG(cols M) error {
+func (o DGuildSlice) UpdateAllG(cols M) error {
 	return o.UpdateAll(boil.GetDB(), cols)
 }
 
 // UpdateAllGP updates all rows with the specified column values, and panics on error.
-func (o DiscordGuildSlice) UpdateAllGP(cols M) {
+func (o DGuildSlice) UpdateAllGP(cols M) {
 	if err := o.UpdateAll(boil.GetDB(), cols); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // UpdateAllP updates all rows with the specified column values, and panics on error.
-func (o DiscordGuildSlice) UpdateAllP(exec boil.Executor, cols M) {
+func (o DGuildSlice) UpdateAllP(exec boil.Executor, cols M) {
 	if err := o.UpdateAll(exec, cols); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // UpdateAll updates all rows with the specified column values, using an executor.
-func (o DiscordGuildSlice) UpdateAll(exec boil.Executor, cols M) error {
+func (o DGuildSlice) UpdateAll(exec boil.Executor, cols M) error {
 	ln := int64(len(o))
 	if ln == 0 {
 		return nil
@@ -477,14 +478,14 @@ func (o DiscordGuildSlice) UpdateAll(exec boil.Executor, cols M) error {
 
 	// Append all of the primary key values for each column
 	for _, obj := range o {
-		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), discordGuildPrimaryKeyMapping)
+		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), dGuildPrimaryKeyMapping)
 		args = append(args, pkeyArgs...)
 	}
 
 	sql := fmt.Sprintf(
-		"UPDATE \"discord_guilds\" SET %s WHERE (\"id\") IN (%s)",
+		"UPDATE \"d_guilds\" SET %s WHERE (\"id\") IN (%s)",
 		strmangle.SetParamNames("\"", "\"", 1, colNames),
-		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(discordGuildPrimaryKeyColumns), len(colNames)+1, len(discordGuildPrimaryKeyColumns)),
+		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(dGuildPrimaryKeyColumns), len(colNames)+1, len(dGuildPrimaryKeyColumns)),
 	)
 
 	if boil.DebugMode {
@@ -494,19 +495,19 @@ func (o DiscordGuildSlice) UpdateAll(exec boil.Executor, cols M) error {
 
 	_, err := exec.Exec(sql, args...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to update all in discordGuild slice")
+		return errors.Wrap(err, "models: unable to update all in dGuild slice")
 	}
 
 	return nil
 }
 
 // UpsertG attempts an insert, and does an update or ignore on conflict.
-func (o *DiscordGuild) UpsertG(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
+func (o *DGuild) UpsertG(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
 	return o.Upsert(boil.GetDB(), updateOnConflict, conflictColumns, updateColumns, whitelist...)
 }
 
 // UpsertGP attempts an insert, and does an update or ignore on conflict. Panics on error.
-func (o *DiscordGuild) UpsertGP(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
+func (o *DGuild) UpsertGP(updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
 	if err := o.Upsert(boil.GetDB(), updateOnConflict, conflictColumns, updateColumns, whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -514,16 +515,16 @@ func (o *DiscordGuild) UpsertGP(updateOnConflict bool, conflictColumns []string,
 
 // UpsertP attempts an insert using an executor, and does an update or ignore on conflict.
 // UpsertP panics on error.
-func (o *DiscordGuild) UpsertP(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
+func (o *DGuild) UpsertP(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) {
 	if err := o.Upsert(exec, updateOnConflict, conflictColumns, updateColumns, whitelist...); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // Upsert attempts an insert using an executor, and does an update or ignore on conflict.
-func (o *DiscordGuild) Upsert(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
+func (o *DGuild) Upsert(exec boil.Executor, updateOnConflict bool, conflictColumns []string, updateColumns []string, whitelist ...string) error {
 	if o == nil {
-		return errors.New("models: no discord_guilds provided for upsert")
+		return errors.New("models: no d_guilds provided for upsert")
 	}
 	currTime := time.Now().In(boil.GetLocation())
 
@@ -531,7 +532,7 @@ func (o *DiscordGuild) Upsert(exec boil.Executor, updateOnConflict bool, conflic
 		o.CreatedAt = currTime
 	}
 
-	nzDefaults := queries.NonZeroDefaultSet(discordGuildColumnsWithDefault, o)
+	nzDefaults := queries.NonZeroDefaultSet(dGuildColumnsWithDefault, o)
 
 	// Build cache key in-line uglily - mysql vs postgres problems
 	buf := strmangle.GetBuffer()
@@ -559,43 +560,43 @@ func (o *DiscordGuild) Upsert(exec boil.Executor, updateOnConflict bool, conflic
 	key := buf.String()
 	strmangle.PutBuffer(buf)
 
-	discordGuildUpsertCacheMut.RLock()
-	cache, cached := discordGuildUpsertCache[key]
-	discordGuildUpsertCacheMut.RUnlock()
+	dGuildUpsertCacheMut.RLock()
+	cache, cached := dGuildUpsertCache[key]
+	dGuildUpsertCacheMut.RUnlock()
 
 	var err error
 
 	if !cached {
 		var ret []string
 		whitelist, ret = strmangle.InsertColumnSet(
-			discordGuildColumns,
-			discordGuildColumnsWithDefault,
-			discordGuildColumnsWithoutDefault,
+			dGuildColumns,
+			dGuildColumnsWithDefault,
+			dGuildColumnsWithoutDefault,
 			nzDefaults,
 			whitelist,
 		)
 		update := strmangle.UpdateColumnSet(
-			discordGuildColumns,
-			discordGuildPrimaryKeyColumns,
+			dGuildColumns,
+			dGuildPrimaryKeyColumns,
 			updateColumns,
 		)
 		if len(update) == 0 {
-			return errors.New("models: unable to upsert discord_guilds, could not build update column list")
+			return errors.New("models: unable to upsert d_guilds, could not build update column list")
 		}
 
 		conflict := conflictColumns
 		if len(conflict) == 0 {
-			conflict = make([]string, len(discordGuildPrimaryKeyColumns))
-			copy(conflict, discordGuildPrimaryKeyColumns)
+			conflict = make([]string, len(dGuildPrimaryKeyColumns))
+			copy(conflict, dGuildPrimaryKeyColumns)
 		}
-		cache.query = queries.BuildUpsertQueryPostgres(dialect, "\"discord_guilds\"", updateOnConflict, ret, update, conflict, whitelist)
+		cache.query = queries.BuildUpsertQueryPostgres(dialect, "\"d_guilds\"", updateOnConflict, ret, update, conflict, whitelist)
 
-		cache.valueMapping, err = queries.BindMapping(discordGuildType, discordGuildMapping, whitelist)
+		cache.valueMapping, err = queries.BindMapping(dGuildType, dGuildMapping, whitelist)
 		if err != nil {
 			return err
 		}
 		if len(ret) != 0 {
-			cache.retMapping, err = queries.BindMapping(discordGuildType, discordGuildMapping, ret)
+			cache.retMapping, err = queries.BindMapping(dGuildType, dGuildMapping, ret)
 			if err != nil {
 				return err
 			}
@@ -623,55 +624,55 @@ func (o *DiscordGuild) Upsert(exec boil.Executor, updateOnConflict bool, conflic
 		_, err = exec.Exec(cache.query, vals...)
 	}
 	if err != nil {
-		return errors.Wrap(err, "models: unable to upsert discord_guilds")
+		return errors.Wrap(err, "models: unable to upsert d_guilds")
 	}
 
 	if !cached {
-		discordGuildUpsertCacheMut.Lock()
-		discordGuildUpsertCache[key] = cache
-		discordGuildUpsertCacheMut.Unlock()
+		dGuildUpsertCacheMut.Lock()
+		dGuildUpsertCache[key] = cache
+		dGuildUpsertCacheMut.Unlock()
 	}
 
 	return nil
 }
 
-// DeleteP deletes a single DiscordGuild record with an executor.
+// DeleteP deletes a single DGuild record with an executor.
 // DeleteP will match against the primary key column to find the record to delete.
 // Panics on error.
-func (o *DiscordGuild) DeleteP(exec boil.Executor) {
+func (o *DGuild) DeleteP(exec boil.Executor) {
 	if err := o.Delete(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// DeleteG deletes a single DiscordGuild record.
+// DeleteG deletes a single DGuild record.
 // DeleteG will match against the primary key column to find the record to delete.
-func (o *DiscordGuild) DeleteG() error {
+func (o *DGuild) DeleteG() error {
 	if o == nil {
-		return errors.New("models: no DiscordGuild provided for deletion")
+		return errors.New("models: no DGuild provided for deletion")
 	}
 
 	return o.Delete(boil.GetDB())
 }
 
-// DeleteGP deletes a single DiscordGuild record.
+// DeleteGP deletes a single DGuild record.
 // DeleteGP will match against the primary key column to find the record to delete.
 // Panics on error.
-func (o *DiscordGuild) DeleteGP() {
+func (o *DGuild) DeleteGP() {
 	if err := o.DeleteG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
-// Delete deletes a single DiscordGuild record with an executor.
+// Delete deletes a single DGuild record with an executor.
 // Delete will match against the primary key column to find the record to delete.
-func (o *DiscordGuild) Delete(exec boil.Executor) error {
+func (o *DGuild) Delete(exec boil.Executor) error {
 	if o == nil {
-		return errors.New("models: no DiscordGuild provided for delete")
+		return errors.New("models: no DGuild provided for delete")
 	}
 
-	args := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(o)), discordGuildPrimaryKeyMapping)
-	sql := "DELETE FROM \"discord_guilds\" WHERE \"id\"=$1"
+	args := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(o)), dGuildPrimaryKeyMapping)
+	sql := "DELETE FROM \"d_guilds\" WHERE \"id\"=$1"
 
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, sql)
@@ -680,61 +681,61 @@ func (o *DiscordGuild) Delete(exec boil.Executor) error {
 
 	_, err := exec.Exec(sql, args...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to delete from discord_guilds")
+		return errors.Wrap(err, "models: unable to delete from d_guilds")
 	}
 
 	return nil
 }
 
 // DeleteAllP deletes all rows, and panics on error.
-func (q discordGuildQuery) DeleteAllP() {
+func (q dGuildQuery) DeleteAllP() {
 	if err := q.DeleteAll(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // DeleteAll deletes all matching rows.
-func (q discordGuildQuery) DeleteAll() error {
+func (q dGuildQuery) DeleteAll() error {
 	if q.Query == nil {
-		return errors.New("models: no discordGuildQuery provided for delete all")
+		return errors.New("models: no dGuildQuery provided for delete all")
 	}
 
 	queries.SetDelete(q.Query)
 
 	_, err := q.Query.Exec()
 	if err != nil {
-		return errors.Wrap(err, "models: unable to delete all from discord_guilds")
+		return errors.Wrap(err, "models: unable to delete all from d_guilds")
 	}
 
 	return nil
 }
 
 // DeleteAllGP deletes all rows in the slice, and panics on error.
-func (o DiscordGuildSlice) DeleteAllGP() {
+func (o DGuildSlice) DeleteAllGP() {
 	if err := o.DeleteAllG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // DeleteAllG deletes all rows in the slice.
-func (o DiscordGuildSlice) DeleteAllG() error {
+func (o DGuildSlice) DeleteAllG() error {
 	if o == nil {
-		return errors.New("models: no DiscordGuild slice provided for delete all")
+		return errors.New("models: no DGuild slice provided for delete all")
 	}
 	return o.DeleteAll(boil.GetDB())
 }
 
 // DeleteAllP deletes all rows in the slice, using an executor, and panics on error.
-func (o DiscordGuildSlice) DeleteAllP(exec boil.Executor) {
+func (o DGuildSlice) DeleteAllP(exec boil.Executor) {
 	if err := o.DeleteAll(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // DeleteAll deletes all rows in the slice, using an executor.
-func (o DiscordGuildSlice) DeleteAll(exec boil.Executor) error {
+func (o DGuildSlice) DeleteAll(exec boil.Executor) error {
 	if o == nil {
-		return errors.New("models: no DiscordGuild slice provided for delete all")
+		return errors.New("models: no DGuild slice provided for delete all")
 	}
 
 	if len(o) == 0 {
@@ -743,14 +744,14 @@ func (o DiscordGuildSlice) DeleteAll(exec boil.Executor) error {
 
 	var args []interface{}
 	for _, obj := range o {
-		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), discordGuildPrimaryKeyMapping)
+		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), dGuildPrimaryKeyMapping)
 		args = append(args, pkeyArgs...)
 	}
 
 	sql := fmt.Sprintf(
-		"DELETE FROM \"discord_guilds\" WHERE (%s) IN (%s)",
-		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, discordGuildPrimaryKeyColumns), ","),
-		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(discordGuildPrimaryKeyColumns), 1, len(discordGuildPrimaryKeyColumns)),
+		"DELETE FROM \"d_guilds\" WHERE (%s) IN (%s)",
+		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, dGuildPrimaryKeyColumns), ","),
+		strmangle.Placeholders(dialect.IndexPlaceholders, len(o)*len(dGuildPrimaryKeyColumns), 1, len(dGuildPrimaryKeyColumns)),
 	)
 
 	if boil.DebugMode {
@@ -760,30 +761,30 @@ func (o DiscordGuildSlice) DeleteAll(exec boil.Executor) error {
 
 	_, err := exec.Exec(sql, args...)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to delete all from discordGuild slice")
+		return errors.Wrap(err, "models: unable to delete all from dGuild slice")
 	}
 
 	return nil
 }
 
 // ReloadGP refetches the object from the database and panics on error.
-func (o *DiscordGuild) ReloadGP() {
+func (o *DGuild) ReloadGP() {
 	if err := o.ReloadG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // ReloadP refetches the object from the database with an executor. Panics on error.
-func (o *DiscordGuild) ReloadP(exec boil.Executor) {
+func (o *DGuild) ReloadP(exec boil.Executor) {
 	if err := o.Reload(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
 }
 
 // ReloadG refetches the object from the database using the primary keys.
-func (o *DiscordGuild) ReloadG() error {
+func (o *DGuild) ReloadG() error {
 	if o == nil {
-		return errors.New("models: no DiscordGuild provided for reload")
+		return errors.New("models: no DGuild provided for reload")
 	}
 
 	return o.Reload(boil.GetDB())
@@ -791,8 +792,8 @@ func (o *DiscordGuild) ReloadG() error {
 
 // Reload refetches the object from the database
 // using the primary keys with an executor.
-func (o *DiscordGuild) Reload(exec boil.Executor) error {
-	ret, err := FindDiscordGuild(exec, o.ID)
+func (o *DGuild) Reload(exec boil.Executor) error {
+	ret, err := FindDGuild(exec, o.ID)
 	if err != nil {
 		return err
 	}
@@ -804,7 +805,7 @@ func (o *DiscordGuild) Reload(exec boil.Executor) error {
 // ReloadAllGP refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
 // Panics on error.
-func (o *DiscordGuildSlice) ReloadAllGP() {
+func (o *DGuildSlice) ReloadAllGP() {
 	if err := o.ReloadAllG(); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -813,7 +814,7 @@ func (o *DiscordGuildSlice) ReloadAllGP() {
 // ReloadAllP refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
 // Panics on error.
-func (o *DiscordGuildSlice) ReloadAllP(exec boil.Executor) {
+func (o *DGuildSlice) ReloadAllP(exec boil.Executor) {
 	if err := o.ReloadAll(exec); err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -821,9 +822,9 @@ func (o *DiscordGuildSlice) ReloadAllP(exec boil.Executor) {
 
 // ReloadAllG refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
-func (o *DiscordGuildSlice) ReloadAllG() error {
+func (o *DGuildSlice) ReloadAllG() error {
 	if o == nil {
-		return errors.New("models: empty DiscordGuildSlice provided for reload all")
+		return errors.New("models: empty DGuildSlice provided for reload all")
 	}
 
 	return o.ReloadAll(boil.GetDB())
@@ -831,41 +832,41 @@ func (o *DiscordGuildSlice) ReloadAllG() error {
 
 // ReloadAll refetches every row with matching primary key column values
 // and overwrites the original object slice with the newly updated slice.
-func (o *DiscordGuildSlice) ReloadAll(exec boil.Executor) error {
+func (o *DGuildSlice) ReloadAll(exec boil.Executor) error {
 	if o == nil || len(*o) == 0 {
 		return nil
 	}
 
-	discordGuilds := DiscordGuildSlice{}
+	dGuilds := DGuildSlice{}
 	var args []interface{}
 	for _, obj := range *o {
-		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), discordGuildPrimaryKeyMapping)
+		pkeyArgs := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(obj)), dGuildPrimaryKeyMapping)
 		args = append(args, pkeyArgs...)
 	}
 
 	sql := fmt.Sprintf(
-		"SELECT \"discord_guilds\".* FROM \"discord_guilds\" WHERE (%s) IN (%s)",
-		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, discordGuildPrimaryKeyColumns), ","),
-		strmangle.Placeholders(dialect.IndexPlaceholders, len(*o)*len(discordGuildPrimaryKeyColumns), 1, len(discordGuildPrimaryKeyColumns)),
+		"SELECT \"d_guilds\".* FROM \"d_guilds\" WHERE (%s) IN (%s)",
+		strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, dGuildPrimaryKeyColumns), ","),
+		strmangle.Placeholders(dialect.IndexPlaceholders, len(*o)*len(dGuildPrimaryKeyColumns), 1, len(dGuildPrimaryKeyColumns)),
 	)
 
 	q := queries.Raw(exec, sql, args...)
 
-	err := q.Bind(&discordGuilds)
+	err := q.Bind(&dGuilds)
 	if err != nil {
-		return errors.Wrap(err, "models: unable to reload all in DiscordGuildSlice")
+		return errors.Wrap(err, "models: unable to reload all in DGuildSlice")
 	}
 
-	*o = discordGuilds
+	*o = dGuilds
 
 	return nil
 }
 
-// DiscordGuildExists checks if the DiscordGuild row exists.
-func DiscordGuildExists(exec boil.Executor, id int64) (bool, error) {
+// DGuildExists checks if the DGuild row exists.
+func DGuildExists(exec boil.Executor, id int64) (bool, error) {
 	var exists bool
 
-	sql := "select exists(select 1 from \"discord_guilds\" where \"id\"=$1 limit 1)"
+	sql := "select exists(select 1 from \"d_guilds\" where \"id\"=$1 limit 1)"
 
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, sql)
@@ -876,20 +877,20 @@ func DiscordGuildExists(exec boil.Executor, id int64) (bool, error) {
 
 	err := row.Scan(&exists)
 	if err != nil {
-		return false, errors.Wrap(err, "models: unable to check if discord_guilds exists")
+		return false, errors.Wrap(err, "models: unable to check if d_guilds exists")
 	}
 
 	return exists, nil
 }
 
-// DiscordGuildExistsG checks if the DiscordGuild row exists.
-func DiscordGuildExistsG(id int64) (bool, error) {
-	return DiscordGuildExists(boil.GetDB(), id)
+// DGuildExistsG checks if the DGuild row exists.
+func DGuildExistsG(id int64) (bool, error) {
+	return DGuildExists(boil.GetDB(), id)
 }
 
-// DiscordGuildExistsGP checks if the DiscordGuild row exists. Panics on error.
-func DiscordGuildExistsGP(id int64) bool {
-	e, err := DiscordGuildExists(boil.GetDB(), id)
+// DGuildExistsGP checks if the DGuild row exists. Panics on error.
+func DGuildExistsGP(id int64) bool {
+	e, err := DGuildExists(boil.GetDB(), id)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
@@ -897,9 +898,9 @@ func DiscordGuildExistsGP(id int64) bool {
 	return e
 }
 
-// DiscordGuildExistsP checks if the DiscordGuild row exists. Panics on error.
-func DiscordGuildExistsP(exec boil.Executor, id int64) bool {
-	e, err := DiscordGuildExists(exec, id)
+// DGuildExistsP checks if the DGuild row exists. Panics on error.
+func DGuildExistsP(exec boil.Executor, id int64) bool {
+	e, err := DGuildExists(exec, id)
 	if err != nil {
 		panic(boil.WrapErr(err))
 	}
