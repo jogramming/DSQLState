@@ -9,7 +9,7 @@ import (
 const (
 	VersionMajor = 0
 	VersionMinor = 3
-	VersionPatch = 1
+	VersionPatch = 2
 )
 
 var (

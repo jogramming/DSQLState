@@ -185,9 +185,6 @@ func (s *Server) eventQueuePuller() {
 
 	for {
 		<-ticker.C
-		if s.ShardsReady() {
-
-		}
 		if s.AllGuildsReady() {
 			s.processQueuedNoSessionEvents()
 		}
@@ -204,7 +201,7 @@ func (s *Server) processQueuedNoSessionEvents() {
 			return
 		}
 
-		s.handleNoSessionEvent(evt)
+		s.handleNoSessionEvent(evt, false)
 	}
 }
 
@@ -307,7 +304,7 @@ func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) error {
 		srv.readyLock.RUnlock()
 	}
 
-	return srv.handleNoSessionEvent(evt)
+	return srv.handleNoSessionEvent(evt, true)
 }
 
 // BotID is a helper for retrieving the bot's id
@@ -321,7 +318,7 @@ func (srv *Server) BotID() string {
 	return srv.cache.SelfUser.ID
 }
 
-func (srv *Server) handleNoSessionEvent(evt interface{}) error {
+func (srv *Server) handleNoSessionEvent(evt interface{}, retry bool) error {
 	var err error
 	switch t := evt.(type) {
 	case *discordgo.GuildUpdate:
@@ -363,7 +360,7 @@ func (srv *Server) handleNoSessionEvent(evt interface{}) error {
 	case *discordgo.MessageCreate:
 		err = srv.messageCreate(t.Message)
 	case *discordgo.MessageUpdate:
-		err = srv.messageUpdate(nil, nil, t.Message, true)
+		err = srv.messageUpdate(nil, nil, t.Message, retry)
 	case *discordgo.MessageDelete:
 		err = srv.messageDelete(t.Message)
 
@@ -1242,4 +1239,8 @@ func (s *Server) SetMeta(name string, value interface{}) error {
 
 	err = model.Upsert(s.db, true, []string{"key"}, []string{"value"})
 	return errors.WithMessage(err, "SetMeta")
+}
+
+func (s *Server) QueueLength() uint64 {
+	return s.queue.queue.Length()
 }

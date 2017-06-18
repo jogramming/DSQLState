@@ -149,7 +149,7 @@ func printGuildCounts() {
 	b, n := server.NumNotReady()
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	logrus.Info("Shards ready: ", b, " guilds not ready: ", n, " GO: ", runtime.NumGoroutine(), ", alloc: ", m.Alloc/1000000)
+	logrus.Info("Shards ready: ", b, " guilds not ready: ", n, " GO: ", runtime.NumGoroutine(), ", alloc: ", m.Alloc/1000000, ", queue length: ", server.QueueLength())
 }
 
 func handleEvent(session *discordgo.Session, evt interface{}) {
