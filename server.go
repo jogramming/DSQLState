@@ -2,6 +2,7 @@ package dsqlstate
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/jonas747/dsqlstate/models"
@@ -400,7 +401,7 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) error {
 	if !srv.removedFK {
 		// Remove the user_id foreign key on members temporarily because of race conditions
 		// It gets added back later when all shards and guilds have done their initial load
-		_, err := srv.db.Exec("ALTER TABLE discord_members DROP CONSTRAINT discord_members_user_id_fkey")
+		_, err := srv.db.Exec("ALTER TABLE d_members DROP CONSTRAINT d_members_user_id_fkey")
 		if !srv.handleError(err, "Failed temporarily removing foreign key") {
 			srv.removedFK = true
 		} else if cast, ok := err.(*pq.Error); ok {
@@ -411,20 +412,22 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) error {
 	}
 	srv.cache.Unlock()
 
+	// Update the meta entry
+
 	// var now = time.Now()
 
 	// Mark all guilds on this shard as deleted
-	_, err := srv.db.Exec("UPDATE discord_guilds SET left_at = $1 WHERE left_at IS NULL"+shardClauseAnd("id", s.ShardCount, s.ShardID), time.Now())
+	_, err := srv.db.Exec("UPDATE d_guilds SET left_at = $1 WHERE left_at IS NULL"+shardClauseAnd("id", s.ShardCount, s.ShardID), time.Now())
 	srv.handleError(err, "Failed marking shard guilds as left")
 
 	sc := shardClauseAnd("guild_id", s.ShardCount, s.ShardID)
 
 	// Mark all guild roles as deleted
-	_, err = srv.db.Exec("UPDATE discord_guild_roles SET deleted_at = $1 WHERE deleted_at IS NULL"+sc, time.Now())
+	_, err = srv.db.Exec("UPDATE d_guild_roles SET deleted_at = $1 WHERE deleted_at IS NULL"+sc, time.Now())
 	srv.handleError(err, "Failed marking shard guild roles as deleted")
 
 	// Mark all guild channels as deleted
-	_, err = srv.db.Exec("UPDATE discord_channels SET deleted_at = $1 WHERE deleted_at IS NULL"+sc, time.Now())
+	_, err = srv.db.Exec("UPDATE d_channels SET deleted_at = $1 WHERE deleted_at IS NULL"+sc, time.Now())
 	srv.handleError(err, "Failed marking shard guild channels as deleted")
 
 	vcClause := shardClause("guild_id", s.ShardCount, s.ShardID)
@@ -432,11 +435,11 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) error {
 		vcClause = " WHERE " + vcClause
 	}
 	// Clear the voice srvates, as we get a new fresh set in the guild creates
-	_, err = srv.db.Exec("DELETE FROM discord_voice_states" + vcClause)
+	_, err = srv.db.Exec("DELETE FROM d_voice_states" + vcClause)
 	srv.handleError(err, "Failed marking shard guild voice_states as deleted")
 
 	// Clear members, as people can have left in the meantime, it is now unclear who is srvill on the server
-	_, err = srv.db.Exec("UPDATE discord_members SET left_at = $1 WHERE left_at IS NULL"+sc, time.Now())
+	_, err = srv.db.Exec("UPDATE d_members SET left_at = $1 WHERE left_at IS NULL"+sc, time.Now())
 	srv.handleError(err, "Failed marking shard guild members as left")
 
 	doneChan := make(chan error)
@@ -455,7 +458,7 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) error {
 		}
 
 		if v.Unavailable {
-			srv.db.Exec("UPDATE discord_guilds SET left_at = NULL WHERE id = $1", v.ID)
+			srv.db.Exec("UPDATE d_guilds SET left_at = NULL WHERE id = $1", v.ID)
 		} else {
 			count++
 			go func(g *discordgo.Guild) {
@@ -500,7 +503,6 @@ func (srv *Server) guildMembersChunk(chunk *discordgo.GuildMembersChunk) error {
 func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) error {
 	parsedGID, _ := strconv.ParseInt(g.ID, 10, 64)
 	defer func() {
-
 		srv.readyLock.Lock()
 		defer srv.readyLock.Unlock()
 		delete(srv.readyGuilds, parsedGID)
@@ -511,7 +513,7 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) e
 
 		if srv.AllGuildsReadyNL() {
 			// Re-instantiate the foreign key
-			_, err := srv.db.Exec("ALTER TABLE discord_members ADD FOREIGN KEY(user_id) REFERENCES discord_users(id)")
+			_, err := srv.db.Exec("ALTER TABLE d_members ADD FOREIGN KEY(user_id) REFERENCES d_users(id)")
 			if !srv.handleError(err, "Failed adding back foreign key") {
 				srv.removedFK = false
 			}
@@ -636,7 +638,7 @@ func (srv *Server) guildRemove(g *discordgo.Guild) error {
 	srv.readyLock.Lock()
 	delete(srv.readyGuilds, parsedID)
 	srv.readyLock.Unlock()
-	srv.db.Exec("UPDATE discord_guilds SET left_at = $1 WHERE id = $2", time.Now(), g.ID)
+	srv.db.Exec("UPDATE d_guilds SET left_at = $1 WHERE id = $2", time.Now(), g.ID)
 	models.DVoiceStates(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
 	models.DMembers(srv.db, qm.Where("id = ?", g.ID)).DeleteAll()
 	models.DGuildRoles(srv.db, qm.Where("guild_id = ?", g.ID)).DeleteAll()
@@ -835,7 +837,7 @@ func (s *Server) updateRole(guildID string, role *discordgo.Role) error {
 }
 
 func (s *Server) removeRole(roleID string) error {
-	_, err := s.db.Exec("UPDATE discord_guild_roles SET deleted_at = $2 WHERE id = $1", roleID, time.Now())
+	_, err := s.db.Exec("UPDATE d_guild_roles SET deleted_at = $2 WHERE id = $1", roleID, time.Now())
 	return errors.WithMessage(err, "removeRole")
 }
 
@@ -867,19 +869,20 @@ func (s *Server) updateGuildChannel(channel *discordgo.Channel) error {
 		Bitrate:       channel.Bitrate,
 	}
 
-	err = model.Upsert(s.db, true, []string{"id"}, []string{"name", "topic", "last_message_id", "position", "bitrate"})
-	if err != nil {
-		return errors.WithMessage(err, "updateGuildChannel")
-	}
-
 	// Update permission overwrites
 	transaction, err := s.db.Begin()
 	if err != nil {
 		return errors.WithMessage(err, "updateGuildChannel, Begin")
 	}
 
+	err = model.Upsert(transaction, true, []string{"id"}, []string{"name", "topic", "last_message_id", "position", "bitrate"})
+	if err != nil {
+		transaction.Rollback()
+		return errors.WithMessage(err, "updateGuildChannel")
+	}
+
 	args := []interface{}{parsedChannelId}
-	query := "DELETE FROM discord_channel_overwrites WHERE channel_id = $1"
+	query := "DELETE FROM d_channel_overwrites WHERE channel_id = $1"
 	if len(channel.PermissionOverwrites) > 0 {
 		query += " AND id NOT IN ("
 		for i, v := range channel.PermissionOverwrites {
@@ -968,7 +971,7 @@ func (s *Server) updateVoiecState(vc *discordgo.VoiceState) error {
 
 	// Check if they left voice
 	if vc.ChannelID == "" {
-		query := "DELETE FROM discord_voice_States WHERE user_id = $1"
+		query := "DELETE FROM d_voice_States WHERE user_id = $1"
 		args := []interface{}{parsedUser}
 		if parsedGuildID != 0 {
 			query += " AND guild_id = $2"
@@ -1225,4 +1228,18 @@ func createEmbedModel(embed *discordgo.MessageEmbed) *models.DMessageEmbed {
 func (s *Server) messageDelete(m *discordgo.Message) error {
 	err := models.DMessages(s.db, qm.Where("id = ?", m.ID)).UpdateAll(models.M{"deleted_at": time.Now()})
 	return errors.WithMessage(err, "messageDelete")
+}
+
+func (s *Server) SetMeta(name string, value interface{}) error {
+	b, err := json.Marshal(value)
+	if err != nil {
+		return errors.WithMessage(err, "SetMeta")
+	}
+	model := &models.DMetum{
+		Key:   name,
+		Value: b,
+	}
+
+	err = model.Upsert(s.db, true, []string{"key"}, []string{"value"})
+	return errors.WithMessage(err, "SetMeta")
 }
