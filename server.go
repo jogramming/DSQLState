@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/jonas747/discordgo"
 	"github.com/jonas747/dsqlstate/models"
+	"sync/atomic"
+
 	// "github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/vattle/sqlboiler/boil"
@@ -71,8 +73,11 @@ type Server struct {
 	membersPullLock        sync.Mutex
 	stopMembersWorker      chan bool
 	membersChunkEvtHandled bool
+	userCheckCache         *UserCheckCache
 
 	cache memCache
+
+	eventsProcessed *int32
 }
 
 type QueuedEvent struct {
@@ -81,7 +86,7 @@ type QueuedEvent struct {
 }
 
 // New returns a default server using the database
-func NewServer(s *discordgo.Session, db *sql.DB) (*Server, error) {
+func NewServer(s *discordgo.Session, db *sql.DB, uc *UserCheckCache) (*Server, error) {
 
 	// queue, err := NewEventQueue()
 	// if err != nil {
@@ -89,12 +94,14 @@ func NewServer(s *discordgo.Session, db *sql.DB) (*Server, error) {
 	// }
 
 	return &Server{
-		Session: s,
-		db:      db,
+		Session:        s,
+		db:             db,
+		userCheckCache: uc,
 		// queue:               queue,
 		LoadAllMembers:      true,
 		membersPullQueue:    make([]string, 0),
 		guildsToBeProcessed: make(map[int64]bool),
+		eventsProcessed:     new(int32),
 	}, nil
 }
 
@@ -112,6 +119,13 @@ func (s *Server) RunWorkers() {
 }
 
 func (s *Server) NextMembersPull() {
+	s.guildsLock.RLock()
+	n := len(s.guildsToBeProcessed)
+	s.guildsLock.RUnlock()
+	if n > 0 {
+		return
+	}
+
 	s.membersPullLock.Lock()
 	if len(s.membersPullQueue) < 1 || !s.membersChunkEvtHandled {
 		s.membersPullLock.Unlock()
@@ -171,7 +185,7 @@ func (s *Server) NumNotReady() int {
 }
 
 func (srv *Server) HandleEvent(s *discordgo.Session, evt interface{}) error {
-
+	atomic.AddInt32(srv.eventsProcessed, 1)
 	switch t := evt.(type) {
 	case *discordgo.Ready:
 		return srv.ready(s, t)
@@ -203,7 +217,7 @@ func (srv *Server) handleNoSessionEvent(evt interface{}, retry bool) error {
 	var err error
 	switch t := evt.(type) {
 	case *discordgo.GuildUpdate:
-		err = srv.guildUpdate(t.Guild)
+		err = srv.guildUpdate(srv.db, t.Guild)
 
 	// Members
 	case *discordgo.GuildMemberAdd:
@@ -214,22 +228,22 @@ func (srv *Server) handleNoSessionEvent(evt interface{}, retry bool) error {
 		err = models.DMembers(srv.db, qm.Where("user_id = ?", t.User.ID), qm.Where("guild_id = ?", t.GuildID)).UpdateAll(models.M{"left_at": time.Now()})
 	// Roles
 	case *discordgo.GuildRoleCreate:
-		err = srv.updateRole(t.GuildID, t.Role)
+		err = srv.updateRole(srv.db, t.GuildID, t.Role)
 	case *discordgo.GuildRoleUpdate:
-		err = srv.updateRole(t.GuildID, t.Role)
+		err = srv.updateRole(srv.db, t.GuildID, t.Role)
 	case *discordgo.GuildRoleDelete:
 		err = srv.removeRole(t.RoleID)
 
 	// Channels
 	case *discordgo.ChannelCreate:
 		if t.Channel.GuildID != "" {
-			err = srv.updateGuildChannel(t.Channel)
+			err = srv.updateGuildChannel(srv.db, t.Channel)
 		} else if t.Channel.Type == discordgo.ChannelTypeDM || t.Channel.Type == discordgo.ChannelTypeGroupDM {
 			err = srv.updatePrivateChannel(t.Channel)
 		}
 	case *discordgo.ChannelUpdate:
 		if t.Channel.GuildID != "" {
-			err = srv.updateGuildChannel(t.Channel)
+			err = srv.updateGuildChannel(srv.db, t.Channel)
 		} else if t.Channel.Type == discordgo.ChannelTypeDM || t.Channel.Type == discordgo.ChannelTypeGroupDM {
 			err = srv.updatePrivateChannel(t.Channel)
 		}
@@ -302,7 +316,6 @@ func (srv *Server) ready(s *discordgo.Session, r *discordgo.Ready) error {
 	srv.handleError(err, "Failed marking shard guild members as left")
 
 	srv.guildsLock.Lock()
-
 	doneChan := make(chan error)
 	count := 0
 	for _, v := range r.Guilds {
@@ -379,90 +392,111 @@ func (srv *Server) guildCreate(session *discordgo.Session, g *discordgo.Guild) e
 		}(g.ID)
 	}
 
-	log.Println("GC! ", g.Name, " ID: ", g.ID, "PID: ", parsedGID)
-	err := srv.guildUpdate(g)
+	log.Printf("%1d GC! %30s, ID: %10s, Members: %6d", session.ShardID, g.Name, g.ID, g.MemberCount)
+	usersToUpdate := make(map[string]*discordgo.Presence)
+	toWaitFor := make(map[string]bool)
+
+	srv.userCheckCache.Lock()
+	for _, v := range g.Presences {
+		marked, shouldWait := srv.userCheckCache.MarkAsChecking(v.User.ID)
+		if marked {
+			usersToUpdate[v.User.ID] = v
+		} else if shouldWait {
+			toWaitFor[v.User.ID] = true
+		}
+	}
+
+	for _, v := range g.Members {
+		if p, ok := usersToUpdate[v.User.ID]; ok {
+			p.User = v.User
+		} else {
+			marked, shouldWait := srv.userCheckCache.MarkAsChecking(v.User.ID)
+			if marked {
+				usersToUpdate[v.User.ID] = &discordgo.Presence{User: v.User}
+			} else if shouldWait {
+				toWaitFor[v.User.ID] = true
+			}
+		}
+	}
+	srv.userCheckCache.Unlock()
+
+	tx, err := srv.db.Begin()
+	if err != nil {
+		return errors.WithMessage(err, "GuildCreate")
+	}
+
+	err = srv.guildUpdate(tx, g)
 	if err != nil {
 		return errors.WithMessage(err, "GuildCreate")
 	}
 
 	// Update all roles
 	for _, v := range g.Roles {
-		err = srv.updateRole(g.ID, v)
+		err = srv.updateRole(tx, g.ID, v)
 		if err != nil {
+			tx.Rollback()
 			return errors.WithMessage(err, "GuildCreate")
 		}
 	}
 
 	// Update all channels
 	for _, v := range g.Channels {
-		err = srv.updateGuildChannel(v)
+		err = srv.updateGuildChannel(tx, v)
 		if err != nil {
+			tx.Rollback()
 			return errors.WithMessage(err, "GuildCreate")
 		}
 	}
 
-	// Create the update list, and dont load users in twice on the initial startup
-	// Thsi has to be carefully done to avoid deadlocks
-	// toUpdatePresences := make(map[string]*discordgo.Presence)
-	// srv.readyLock.Lock()
-
-	// if srv.removedFK {
-	// 	for _, v := range g.Presences {
-	// 		if _, ok := srv.loadedUsers[v.User.ID]; !ok {
-	// 			toUpdatePresences[v.User.ID] = v
-	// 			srv.loadedUsers[v.User.ID] = true
-	// 		}
-	// 	}
-	// 	for _, v := range g.Members {
-	// 		if p, ok := toUpdatePresences[v.User.ID]; ok {
-	// 			p.User = v.User
-	// 		} else {
-	// 			if _, ok := srv.loadedUsers[v.User.ID]; !ok {
-	// 				toUpdatePresences[v.User.ID] = &discordgo.Presence{User: v.User}
-	// 				srv.loadedUsers[v.User.ID] = true
-	// 			}
-	// 		}
-	// 	}
-	// } else {
-	// 	for _, v := range g.Presences {
-	// 		toUpdatePresences[v.User.ID] = v
-	// 	}
-
-	// 	for _, v := range g.Members {
-	// 		if p, ok := toUpdatePresences[v.User.ID]; ok {
-	// 			p.User = v.User
-	// 		} else {
-
-	// 			toUpdatePresences[v.User.ID] = &discordgo.Presence{User: v.User}
-	// 		}
-	// 	}
-	// }
-	// srv.readyLock.Unlock()
-
-	// tx, err := srv.db.Begin()
+	// err = tx.Commit()
 	// if err != nil {
-	// 	return errors.WithMessage(err, "guildCreate, tx begin")
+	// 	return errors.WithMessage(err, "GuildCreate")
 	// }
 
-	// for _, v := range toUpdatePresences {
-	// 	// These savepoints made postgres run out of shared memory
-	// 	// tx.Exec("SAVEPOINT sp")
-	// 	err = srv.presenceUpdate(tx, v)
-	// 	if err != nil {
-	// 		tx.Rollback()
-	// 		return errors.WithMessage(err, "guildCreate")
-	// 	}
+	// tx, err = srv.db.Begin()
+	// if err != nil {
+	// 	return errors.WithMessage(err, "guildCreate")
 	// }
 
-	// Update all the members and users
-	for _, v := range g.Members {
-		// tx.Exec("SAVEPOINT sp")
-		err = srv.updateMember(srv.db, v, true)
+	started := time.Now()
+	for _, v := range usersToUpdate {
+		err := srv.presenceUpdate(tx, v)
 		if err != nil {
-			// tx.Rollback()
 			return errors.WithMessage(err, "guildCreate")
 		}
 	}
+
+	if len(usersToUpdate) > 500 {
+		log.Println("Took ", time.Since(started), ", To update ", len(usersToUpdate), " users")
+	}
+
+	started = time.Now()
+	for _, v := range g.Members {
+		if _, ok := toWaitFor[v.User.ID]; ok {
+			log.Println("Waiting for", v.User.ID)
+			srv.userCheckCache.WaitForUser(v.User.ID)
+			log.Println("Done for", v.User.ID)
+		}
+		err = srv.updateMember(tx, v, false)
+		if err != nil {
+			return errors.WithMessage(err, "guildCreate")
+		}
+	}
+
+	if len(g.Members) > 500 {
+		log.Println("Took ", time.Since(started), ", To update ", len(g.Members), " members")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return errors.WithMessage(err, "guildCreate")
+	}
+
+	srv.userCheckCache.Lock()
+	for _, v := range usersToUpdate {
+		srv.userCheckCache.MarkAsDoneChecking(v.User.ID)
+	}
+	srv.userCheckCache.Unlock()
 
 	for _, v := range g.VoiceStates {
 		err = srv.updateVoiecState(v)
@@ -490,7 +524,7 @@ func (srv *Server) guildRemove(g *discordgo.Guild) error {
 	return nil
 }
 
-func (srv *Server) guildUpdate(g *discordgo.Guild) error {
+func (srv *Server) guildUpdate(exec boil.Executor, g *discordgo.Guild) error {
 	parsedId, err := strconv.ParseInt(g.ID, 10, 64)
 	if err != nil {
 		return errors.WithMessage(err, "GuildUpdate, ParseID")
@@ -537,7 +571,7 @@ func (srv *Server) guildUpdate(g *discordgo.Guild) error {
 		DefaultMessageNotifications: int16(g.DefaultMessageNotifications),
 	}
 
-	err = model.Upsert(srv.db, true, []string{"id"}, []string{"name", "icon", "region", "afk_channel_id", "embed_channel_id", "owner_id", "splash", "afk_timeout", "member_count", "verification_level", "embed_enabled", "large", "default_message_notifications", "left_at"})
+	err = model.Upsert(exec, true, []string{"id"}, []string{"name", "icon", "region", "afk_channel_id", "embed_channel_id", "owner_id", "splash", "afk_timeout", "member_count", "verification_level", "embed_enabled", "large", "default_message_notifications", "left_at"})
 	if err != nil {
 		return errors.WithMessage(err, "GuildUpdate")
 	}
@@ -651,7 +685,7 @@ func (s *Server) updateMember(exec boil.Executor, member *discordgo.Member, updt
 	return errors.WithMessage(err, "updateMember")
 }
 
-func (s *Server) updateRole(guildID string, role *discordgo.Role) error {
+func (s *Server) updateRole(exec boil.Executor, guildID string, role *discordgo.Role) error {
 	parsedGuildID, err := strconv.ParseInt(guildID, 10, 64)
 	if err != nil {
 		return errors.WithMessage(err, "updateRole, ParseGuildID")
@@ -675,7 +709,7 @@ func (s *Server) updateRole(guildID string, role *discordgo.Role) error {
 		Permissions: role.Permissions,
 	}
 
-	err = model.Upsert(s.db, true, []string{"id"}, []string{"name", "mentionable", "hoist", "color", "position", "permissions"})
+	err = model.Upsert(exec, true, []string{"id"}, []string{"name", "mentionable", "hoist", "color", "position", "permissions"})
 	return errors.WithMessage(err, "updateRole")
 }
 
@@ -684,7 +718,7 @@ func (s *Server) removeRole(roleID string) error {
 	return errors.WithMessage(err, "removeRole")
 }
 
-func (s *Server) updateGuildChannel(channel *discordgo.Channel) error {
+func (s *Server) updateGuildChannel(exec boil.Executor, channel *discordgo.Channel) error {
 	parsedChannelId, err := strconv.ParseInt(channel.ID, 10, 64)
 	if err != nil {
 		return errors.WithMessage(err, "updateGuildChannel, ParseChannelId")
@@ -723,18 +757,13 @@ func (s *Server) updateGuildChannel(channel *discordgo.Channel) error {
 		Bitrate:       channel.Bitrate,
 	}
 
-	// Update permission overwrites
-	transaction, err := s.db.Begin()
+	err = model.Upsert(exec, true, []string{"id"}, []string{"name", "topic", "last_message_id", "position", "bitrate"})
 	if err != nil {
-		return errors.WithMessage(err, "updateGuildChannel, Begin")
-	}
-
-	err = model.Upsert(transaction, true, []string{"id"}, []string{"name", "topic", "last_message_id", "position", "bitrate"})
-	if err != nil {
-		transaction.Rollback()
+		// transaction.Rollback()
 		return errors.WithMessage(err, "updateGuildChannel")
 	}
 
+	// Update permission overwrites
 	args := []interface{}{parsedChannelId}
 	query := "DELETE FROM d_channel_overwrites WHERE channel_id = $1"
 	if len(channel.PermissionOverwrites) > 0 {
@@ -749,9 +778,9 @@ func (s *Server) updateGuildChannel(channel *discordgo.Channel) error {
 		query += ")"
 	}
 
-	_, err = transaction.Exec(query, args...)
+	_, err = exec.Exec(query, args...)
 	if err != nil {
-		transaction.Rollback()
+		// transaction.Rollback()
 		return errors.WithMessage(err, "updateGuildChannel, clear PermOverwrites")
 	}
 
@@ -769,14 +798,14 @@ func (s *Server) updateGuildChannel(channel *discordgo.Channel) error {
 			Deny:      v.Deny,
 		}
 
-		err = model.Upsert(transaction, true, []string{"channel_id", "id"}, []string{"allow", "deny"})
+		err = model.Upsert(exec, true, []string{"channel_id", "id"}, []string{"allow", "deny"})
 		if err != nil {
-			transaction.Rollback()
+			// transaction.Rollback()
 			return errors.WithMessage(err, "updateGuildChannel, permOverwrite upsert")
 		}
 	}
 
-	err = transaction.Commit()
+	// err = transaction.Commit()
 	return errors.WithMessage(err, "updateGuildChannel")
 }
 
@@ -1117,4 +1146,9 @@ func (s *Server) SetMeta(name string, value interface{}) error {
 func (s *Server) QueueLength() uint64 {
 	return 0
 	// return s.queue.queue.Length()
+}
+
+func (s *Server) FlushEventCount() int {
+	n := atomic.SwapInt32(s.eventsProcessed, 0)
+	return int(n)
 }

@@ -40,6 +40,7 @@ var (
 )
 
 func main() {
+	stdlog.SetFlags(0)
 	flag.StringVar(&FlagToken, "t", "", "The discord token to use, will also check the env variable DG_TOKEN")
 	flag.StringVar(&FlagDB, "db", "dstate", "The database to use")
 	flag.StringVar(&FlagHost, "host", "localhost", "The host to use when connecting to the db")
@@ -100,6 +101,7 @@ func main() {
 		return
 	}
 
+	// boil.DebugMode = true
 	db.SetMaxOpenConns(10)
 	logrus.Info("Connected to database")
 
@@ -127,7 +129,6 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			logrus.Println("Tick")
 			printGuildCounts()
 			// case <-ticker2.C:
 			// 	if server.AllGuildsReady() {
@@ -146,15 +147,17 @@ func printGuildCounts() {
 	notReady := 0
 	numShard := len(servers)
 
+	events := 0
 	for _, v := range servers {
 		notReady += v.NumNotReady()
+		events += v.FlushEventCount()
 	}
-
-	logrus.Info("Shards: ", numShard, " guilds not ready: ", notReady, " GO: ", runtime.NumGoroutine(), ", alloc: ", m.Alloc/1000000)
+	logrus.Info("-----------------")
+	logrus.Info("Shards: ", numShard, " guilds not ready: ", notReady, " GO: ", runtime.NumGoroutine(), ", Events: ", events, ", alloc(M): ", m.Alloc/1000000)
+	logrus.Info("-----------------")
 }
 
 func SetupShardManager() (*dshardmanager.Manager, error) {
-	logrus.Println("Creating sm")
 	sm := dshardmanager.New(FlagToken)
 
 	sm.SessionFunc = smSessionFunc
@@ -196,6 +199,10 @@ type Evt struct {
 	Evt interface{}
 }
 
+var (
+	userCheckCache = dsqlstate.NewUserCheckCache()
+)
+
 func smSessionFunc(token string) (*discordgo.Session, error) {
 	session, err := discordgo.New(token)
 	if err != nil {
@@ -203,8 +210,7 @@ func smSessionFunc(token string) (*discordgo.Session, error) {
 	}
 	session.SyncEvents = true
 	session.StateEnabled = false
-
-	server, err := dsqlstate.NewServer(session, db)
+	server, err := dsqlstate.NewServer(session, db, userCheckCache)
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed creating dsqlstate")
 		return nil, err
@@ -213,7 +219,7 @@ func smSessionFunc(token string) (*discordgo.Session, error) {
 	server.LoadAllMembers = true
 	go server.RunWorkers()
 
-	evtChan := make(chan Evt, 10)
+	evtChan := make(chan Evt, 100)
 
 	session.AddHandler(func(s *discordgo.Session, evt interface{}) {
 		if _, ok := evt.(*discordgo.Event); ok {
