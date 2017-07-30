@@ -5,11 +5,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/bwmarrin/discordgo"
+	"github.com/jonas747/discordgo"
 	"github.com/jonas747/dshardmanager"
 	"github.com/jonas747/dsqlstate"
+	_ "github.com/lib/pq"
 	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
+	stdlog "log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -19,7 +21,7 @@ import (
 )
 
 var (
-	server    *dsqlstate.Server
+	servers   []*dsqlstate.Server
 	doTrace   = false
 	db        *sql.DB
 	numShards int
@@ -71,10 +73,12 @@ func main() {
 
 	if FlagLogErrors != "" {
 		logrus.AddHook(lfshook.NewHook(lfshook.PathMap{
-			logrus.ErrorLevel: FlagLogErrors,
+			// logrus.ErrorLevel: FlagLogErrors,
+			logrus.InfoLevel: FlagLogErrors,
 		}))
 		logrus.Info("Added log hook")
 	}
+	stdlog.SetOutput(logrus.StandardLogger().Writer())
 
 	if FlagToken == "" {
 		FlagToken = os.Getenv("DG_TOKEN")
@@ -107,73 +111,54 @@ func main() {
 	}
 	logrus.Info("Initilaized db schema")
 
-	server, err = dsqlstate.NewServer(db, numShards)
-	if err != nil {
-		logrus.WithError(err).Fatal("Failed creating dsqlstate")
-		return
-	}
-
-	server.LoadAllMembers = true
-	server.RunWorkers()
-
 	err = sm.Start()
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed starting shard manager")
 		return
 	}
 
-	sm.AddHandler(handleEvent)
-
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(time.Second * 5)
 
 	go http.ListenAndServe(":8080", nil)
 
-	ticker2 := time.NewTicker(time.Millisecond * 100)
-	started := time.Now()
+	// ticker2 := time.NewTicker(time.Millisecond * 100)
+	// started := time.Now()
 
 	for {
 		select {
 		case <-ticker.C:
+			logrus.Println("Tick")
 			printGuildCounts()
-		case <-ticker2.C:
-			if server.AllGuildsReady() {
-				ticker2.Stop()
-				logrus.Info("All ready! took: ", time.Since(started))
-				// return
-			}
+			// case <-ticker2.C:
+			// 	if server.AllGuildsReady() {
+			// 		ticker2.Stop()
+			// 		logrus.Info("All ready! took: ", time.Since(started))
+			// 		// return
+			// 	}
 		}
 	}
 }
 
 func printGuildCounts() {
-	b, n := server.NumNotReady()
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	logrus.Info("Shards ready: ", b, " guilds not ready: ", n, " GO: ", runtime.NumGoroutine(), ", alloc: ", m.Alloc/1000000, ", queue length: ", server.QueueLength())
-}
 
-func handleEvent(session *discordgo.Session, evt interface{}) {
-	if _, ok := evt.(*discordgo.Event); ok {
-		// Do this check beforehand
-		return
+	notReady := 0
+	numShard := len(servers)
+
+	for _, v := range servers {
+		notReady += v.NumNotReady()
 	}
 
-	err := server.HandleEvent(session, evt)
-	if err != nil {
-		logrus.WithError(err).Error("DSQLState encounteredn an error")
-	}
+	logrus.Info("Shards: ", numShard, " guilds not ready: ", notReady, " GO: ", runtime.NumGoroutine(), ", alloc: ", m.Alloc/1000000)
 }
 
 func SetupShardManager() (*dshardmanager.Manager, error) {
+	logrus.Println("Creating sm")
 	sm := dshardmanager.New(FlagToken)
-	sm.SessionFunc = func(token string) (*discordgo.Session, error) {
-		session, err := discordgo.New(token)
-		if err != nil {
-			return nil, err
-		}
-		session.StateEnabled = false
-		return session, nil
-	}
+
+	sm.SessionFunc = smSessionFunc
+
 	sm.LogChannel = FlagConnEventsChannel
 	sm.StatusMessageChannel = FlagShardStatusChannel
 	sm.Name = FlagBotName
@@ -204,4 +189,52 @@ func SetupShardManager() (*dshardmanager.Manager, error) {
 
 	return sm, nil
 
+}
+
+type Evt struct {
+	S   *discordgo.Session
+	Evt interface{}
+}
+
+func smSessionFunc(token string) (*discordgo.Session, error) {
+	session, err := discordgo.New(token)
+	if err != nil {
+		return nil, err
+	}
+	session.SyncEvents = true
+	session.StateEnabled = false
+
+	server, err := dsqlstate.NewServer(session, db)
+	if err != nil {
+		logrus.WithError(err).Fatal("Failed creating dsqlstate")
+		return nil, err
+	}
+
+	server.LoadAllMembers = true
+	go server.RunWorkers()
+
+	evtChan := make(chan Evt, 10)
+
+	session.AddHandler(func(s *discordgo.Session, evt interface{}) {
+		if _, ok := evt.(*discordgo.Event); ok {
+			// Do this check beforehand
+			return
+		}
+		evtChan <- Evt{s, evt}
+	})
+
+	go func() {
+		for {
+			evt := <-evtChan
+
+			err := server.HandleEvent(evt.S, evt.Evt)
+			if err != nil {
+				logrus.WithError(err).Error("DSQLState encountered an error")
+			}
+		}
+	}()
+
+	servers = append(servers, server)
+
+	return session, nil
 }

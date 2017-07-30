@@ -2,7 +2,7 @@ package dsqlstate
 
 import (
 	"database/sql"
-	"github.com/bwmarrin/discordgo"
+	"github.com/jonas747/discordgo"
 )
 
 // TOOD, use dsqlstate/models to interact with the database directly for the moment.

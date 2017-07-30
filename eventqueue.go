@@ -3,7 +3,7 @@ package dsqlstate
 import (
 	"encoding/json"
 	"github.com/beeker1121/goque"
-	"github.com/bwmarrin/discordgo"
+	"github.com/jonas747/discordgo"
 	"github.com/pkg/errors"
 	"io/ioutil"
 )

@@ -8,8 +8,8 @@ import (
 
 const (
 	VersionMajor = 0
-	VersionMinor = 3
-	VersionPatch = 2
+	VersionMinor = 4
+	VersionPatch = 0
 )
 
 var (
