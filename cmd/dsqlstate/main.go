@@ -219,7 +219,7 @@ func smSessionFunc(token string) (*discordgo.Session, error) {
 	server.LoadAllMembers = true
 	go server.RunWorkers()
 
-	evtChan := make(chan Evt, 100)
+	evtChan := make(chan Evt, 10000)
 
 	session.AddHandler(func(s *discordgo.Session, evt interface{}) {
 		if _, ok := evt.(*discordgo.Event); ok {

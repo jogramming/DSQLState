@@ -160,7 +160,7 @@ CREATE INDEX IF NOT EXISTS d_messages_channel_idx ON d_messages(channel_id);
 DROP TABLE IF EXISTS d_message_revisions CASCADE;
 CREATE TABLE IF NOT EXISTS d_message_revisions (
 	revision_num int,
-	message_id bigint references d_messages(id) NOT NULL,
+	message_id bigint references d_messages(id) ON DELETE CASCADE NOT NULL,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 
 	content text NOT NULL,
@@ -177,7 +177,7 @@ CREATE INDEX IF NOT EXISTS d_message_revisions_message_idx ON d_message_revision
 DROP TABLE IF EXISTS d_message_embeds;
 CREATE TABLE IF NOT EXISTS d_message_embeds (
 	id bigserial PRIMARY KEY,
-	message_id bigint references d_messages(id) NOT NULL,
+	message_id bigint references d_messages(id) ON DELETE CASCADE NOT NULL,
 	revision_num int NOT NULL,
 
 	url text NOT NULL,
