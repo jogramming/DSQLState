@@ -637,7 +637,7 @@ func (s *Server) presenceUpdate(exec boil.Executor, p *discordgo.Presence) error
 
 	if p.Game != nil {
 		model.GameName = null.StringFrom(p.Game.Name)
-		model.GameType = null.IntFrom(p.Game.Type)
+		model.GameType = null.IntFrom(int(p.Game.Type))
 		model.GameURL = null.StringFrom(p.Game.URL)
 	}
 
